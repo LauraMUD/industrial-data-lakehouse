@@ -1,74 +1,335 @@
 # Industrial Data Lakehouse
 
-An end-to-end Data Engineering portfolio project using Apache Spark, Delta Lake, and Python.
+A reproducible industrial data engineering project built with Apache Spark, Delta Lake, Python, and uv.
 
 ## Project Overview
 
-This project demonstrates how to transform industrial production, equipment, and energy data into analytics-ready datasets.
+Industrial Data Lakehouse is an end-to-end data engineering project designed to process, transform, validate, and analyze industrial data.
 
-The solution follows a Medallion Architecture with Bronze, Silver, and Gold layers.
+The project implements a Medallion Architecture (Bronze, Silver, Gold) to organize data pipelines and support industrial analytics.
+
+The main focus areas are:
+
+- Industrial production monitoring
+- Energy consumption analysis
+- Equipment performance
+- Data quality validation
+- Industrial KPI calculation
+- Reproducible data pipelines
 
 ## Architecture
 
-Raw Industrial Data
-    |
-    v
-Bronze - Raw Delta Tables
-    |
-    v
-Silver - Cleaned and Validated Data
-    |
-    v
-Gold - Analytics-Ready Data Models
+The project follows the Medallion Architecture:
+
+    Industrial Data Sources
+              |
+              v
+    RAW - Original Source Files
+              |
+              v
+    BRONZE - Data Ingestion
+    PySpark + Delta Lake
+              |
+              v
+    SILVER - Data Transformation
+    Cleaning + Validation
+              |
+              v
+    GOLD - Business Analytics
+    Industrial KPIs
+
+### RAW Layer
+
+Stores original industrial datasets without modifications.
+
+Example datasets:
+
+- Production records
+- Energy consumption measurements
+- Equipment sensor readings
+- Machine operating events
+
+### BRONZE Layer
+
+Ingests raw industrial data using Apache Spark.
+
+Responsibilities:
+
+- Reading source files
+- Applying ingestion schemas
+- Adding ingestion metadata
+- Writing Delta Lake tables
+- Preserving source information
+
+### SILVER Layer
+
+Transforms and validates ingested data.
+
+Responsibilities:
+
+- Handling missing values
+- Removing duplicates
+- Standardizing timestamps
+- Validating data types
+- Applying business rules
+- Detecting invalid measurements
+
+### GOLD Layer
+
+Produces curated datasets for industrial analytics.
+
+Example KPIs:
+
+- Total production
+- Production efficiency
+- Energy consumption
+- Energy intensity
+- Equipment availability
+- Machine downtime
+- Production by equipment
 
 ## Technology Stack
 
-- Python 3.11
-- Apache Spark 4.0.1
-- Delta Lake 4.0.0
-- pytest
-- Ubuntu WSL2
-- GitHub Actions (planned)
+| Technology | Purpose |
+|------------|---------|
+| Python | Pipeline development |
+| Apache Spark | Distributed data processing |
+| PySpark | Spark Python API |
+| Delta Lake | Reliable lakehouse storage |
+| uv | Python dependency management |
+| pytest | Automated testing |
+| Git | Version control |
+| Ubuntu | Development environment |
 
 ## Project Structure
 
-- config/ - Configuration
-- data/raw/ - Source datasets
-- data/bronze/ - Raw Delta tables
-- data/silver/ - Cleaned datasets
-- data/gold/ - Analytical datasets
-- src/ingestion/ - Data ingestion pipelines
-- src/transformations/ - Data transformations
-- src/utils/ - Shared utilities
-- tests/ - Automated tests
-- docs/ - Technical documentation
-- diagnostics/ - Environment validation scripts
+    industrial-data-lakehouse/
+    |
+    |-- README.md
+    |-- pyproject.toml
+    |-- uv.lock
+    |-- .python-version
+    |-- .gitignore
+    |
+    |-- data/
+    |   |-- raw/
+    |   |-- bronze/
+    |   |-- silver/
+    |   |-- gold/
+    |
+    |-- src/
+    |   |-- ingestion/
+    |   |-- transformation/
+    |   |-- analytics/
+    |   |-- quality/
+    |
+    |-- tests/
+    |
+    |-- notebooks/
+    |
+    |-- scripts/
+    |
+    |-- docs/
+
+Note: This structure represents the intended project organization.
+Some directories and modules may be added progressively.
+
+## Installation
+
+### Requirements
+
+- Ubuntu or another Linux distribution
+- Python compatible with the project configuration
+- Java compatible with the installed Spark version
+- uv
+- Git
+
+### Clone the Repository
+
+    git clone <repository-url>
+    cd industrial-data-lakehouse
+
+Replace <repository-url> with the actual Git repository URL.
+
+### Install Dependencies
+
+Install the project dependencies using uv:
+
+    uv sync --frozen
+
+This command installs the exact dependency versions recorded in uv.lock.
+
+If the lockfile has not been generated yet, run:
+
+    uv sync
+
+### Verify the Environment
+
+Check the Python version:
+
+    uv run python --version
+
+Check the installed PySpark version:
+
+    uv run python -c "import pyspark; print(pyspark.__version__)"
+
+Check the installed Delta Lake version:
+
+    uv run python -c "import delta; print('Delta Lake available')"
+
+## Data Pipeline
+
+The intended pipeline consists of three main stages.
+
+### Step 1 - Bronze Ingestion
+
+Read industrial source files and write Delta Lake tables.
+
+Input:
+
+    data/raw/
+
+Output:
+
+    data/bronze/
+
+### Step 2 - Silver Transformation
+
+Clean and validate the Bronze datasets.
+
+Input:
+
+    data/bronze/
+
+Output:
+
+    data/silver/
+
+### Step 3 - Gold Analytics
+
+Generate industrial metrics and analytical datasets.
+
+Input:
+
+    data/silver/
+
+Output:
+
+    data/gold/
+
+Pipeline entry points will be documented as they are implemented.
+
+## Data Quality
+
+Data quality is a fundamental part of the project.
+
+Planned validations include:
+
+- Null value detection
+- Duplicate record detection
+- Schema validation
+- Timestamp consistency
+- Valid measurement ranges
+- Referential integrity
+- Industrial business rule validation
+
+Invalid records may be isolated for further analysis.
+
+## Industrial KPIs
+
+The Gold layer is designed to calculate industrial performance indicators.
+
+### Production Efficiency
+
+    Production Efficiency (%) =
+        (Actual Production / Target Production) * 100
+
+### Energy Intensity
+
+    Energy Intensity =
+        Total Energy Consumption / Total Production
+
+### Equipment Availability
+
+    Equipment Availability (%) =
+        (Operating Time / Planned Production Time) * 100
+
+### Downtime
+
+    Total Downtime =
+        Sum of Equipment Downtime Intervals
+
+These metrics can support operational monitoring and industrial optimization.
+
+## Testing
+
+Automated testing will be implemented using pytest.
+
+Run tests with:
+
+    uv run pytest
+
+Tests will cover:
+
+- Data transformation logic
+- Data quality rules
+- Schema validation
+- KPI calculations
+- Pipeline behavior
+
+## Reproducibility
+
+The project uses uv for dependency management.
+
+The pyproject.toml file defines project dependencies.
+
+The uv.lock file records resolved dependency versions.
+
+To reproduce the development environment:
+
+    uv sync --frozen
+
+This ensures consistent Python dependencies across compatible environments.
 
 ## Development Roadmap
 
-- [x] Configure Python, Spark, and Delta Lake
-- [x] Validate Spark and Delta Lake locally
-- [x] Create project structure
-- [ ] Design industrial datasets and schemas
-- [ ] Implement Bronze ingestion
+- [ ] Configure the Python environment
+- [ ] Configure Apache Spark and Delta Lake
+- [ ] Create synthetic industrial datasets
+- [ ] Implement Bronze ingestion pipelines
 - [ ] Implement Silver transformations
-- [ ] Build Gold analytical models
-- [ ] Implement incremental processing with Delta MERGE
-- [ ] Handle schema evolution
-- [ ] Add automated data quality tests
-- [ ] Configure GitHub Actions CI
-- [ ] Document architecture and results
+- [ ] Implement data quality checks
+- [ ] Implement Gold analytical tables
+- [ ] Calculate industrial KPIs
+- [ ] Add automated tests
+- [ ] Document pipeline execution
+- [ ] Add orchestration and monitoring
 
-## Local Setup
+## Future Improvements
 
-Use Python 3.11 and install the dependencies listed in requirements.txt.
+Potential extensions include:
 
-For local Spark execution under WSL2, set SPARK_LOCAL_IP=127.0.0.1 if necessary.
+- Apache Airflow orchestration
+- Streaming ingestion
+- Industrial IoT data processing
+- Data quality monitoring
+- Automated CI/CD pipelines
+- Cloud object storage integration
+- Business intelligence dashboards
 
-## Project Status
+## Project Goals
 
-Day 1: Development environment validated. Data pipelines are not yet implemented.
+The main goal of this project is to demonstrate practical data engineering skills through a reproducible industrial lakehouse implementation.
 
-## Author
+The project emphasizes:
 
-Laura - Data Engineer
+- Clean architecture
+- Modular pipeline development
+- Data reliability
+- Reproducibility
+- Industrial analytics
+- Software engineering best practices
+
+## License
+
+License to be defined.
