@@ -1,0 +1,44 @@
+# Python virtual environments
+.venv/
+.venv-*/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+
+# Delta Lake generated data
+data/bronze/*
+data/silver/*
+data/gold/*
+data/raw/*
+
+# Preserve data directories
+!data/bronze/.gitkeep
+!data/silver/.gitkeep
+!data/gold/.gitkeep
+!data/raw/.gitkeep
+
+# Diagnostic logs
+*.log
+
+# IDE and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
