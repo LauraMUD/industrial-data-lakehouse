@@ -1,0 +1,5 @@
+event_id,plant_id,equipment_id,sensor_id,event_timestamp,measurement_type,measurement_value,unit
+EVT007,PLANT_ES_01,CRUSHER_01,TEMP_01,2026-11-19T08:00:00Z,temperature,70.1,C
+EVT008,PLANT_ES_01,CONVEYOR_01,VIB_03,2026-11-19T08:01:00Z,vibration,3.8,mm/s
+EVT009,PLANT_CL_01,MILL_01,PRESS_01,2026-11-19T08:02:00Z,pressure,6.1,bar
+EVT010,PLANT_AU_01,PUMP_01,TEMP_03,2026-11-19T08:03:00Z,temperature,75.4,C

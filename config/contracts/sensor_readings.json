@@ -1,0 +1,20 @@
+{
+  "dataset": "sensor_readings",
+  "source_system": "industrial_scada_simulator",
+  "description": "Raw industrial sensor readings",
+  "format": "csv",
+  "delimiter": ",",
+  "header": true,
+  "timezone": "UTC",
+  "schema_version": "1.0.0",
+  "columns": [
+    "event_id",
+    "plant_id",
+    "equipment_id",
+    "sensor_id",
+    "event_timestamp",
+    "measurement_type",
+    "measurement_value",
+    "unit"
+  ]
+}
