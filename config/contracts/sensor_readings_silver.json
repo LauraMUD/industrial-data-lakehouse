@@ -1,0 +1,45 @@
+{
+    "dataset": "sensor_readings",
+    "layer": "silver",
+    "schema_version": "1.0.0",
+    "timezone": "UTC",
+    "primary_key": [
+        "event_id"
+    ],
+    "required_columns": [
+        "event_id",
+        "plant_id",
+        "equipment_id",
+        "sensor_id",
+        "event_timestamp",
+        "measurement_type",
+        "measurement_value",
+        "unit"
+    ],
+    "measurement_rules": {
+        "temperature": {
+            "unit": "C",
+            "min": -50,
+            "max": 200
+        },
+        "vibration": {
+            "unit": "mm/s",
+            "min": 0,
+            "max": 100
+        },
+        "pressure": {
+            "unit": "bar",
+            "min": 0,
+            "max": 500
+        }
+    },
+    "quality_rules": {
+        "reject_null_required": true,
+        "reject_invalid_timestamp": true,
+        "reject_invalid_numeric": true,
+        "reject_unknown_measurement_type": true,
+        "reject_invalid_unit": true,
+        "reject_out_of_range": true,
+        "reject_duplicate_event_id": true
+    }
+}

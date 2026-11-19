@@ -25,12 +25,14 @@ derby.log
 # Delta Lake generated data
 data/bronze/*
 data/silver/*
+data/quarantine/*
 data/gold/*
 data/raw/*
 
 # Preserve data directories
 !data/bronze/.gitkeep
 !data/silver/.gitkeep
+!data/quarantine/.gitkeep
 !data/gold/.gitkeep
 !data/raw/.gitkeep
 
