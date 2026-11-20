@@ -4,331 +4,387 @@ A reproducible industrial data engineering project built with Apache Spark, Delt
 
 ## Project Overview
 
-Industrial Data Lakehouse is an end-to-end data engineering project designed to process, transform, validate, and analyze industrial data.
+Industrial Data Lakehouse is an end-to-end data engineering project designed to ingest, validate, transform, and analyze industrial sensor data.
 
-The project implements a Medallion Architecture (Bronze, Silver, Gold) to organize data pipelines and support industrial analytics.
+The project implements the **Medallion Architecture (Bronze, Silver, Gold)** with a focus on data reliability, reproducibility, automated testing, and industrial analytics.
 
-The main focus areas are:
+The current implementation includes:
 
-- Industrial production monitoring
-- Energy consumption analysis
-- Equipment performance
-- Data quality validation
-- Industrial KPI calculation
-- Reproducible data pipelines
+- Industrial sensor ingestion into Delta Lake
+- Data quality validation and quarantine
+- Idempotent Silver batch processing
+- Dimensional modeling in Gold
+- Minute-level and hourly sensor aggregations
+- Referential integrity and reconciliation checks
+- Versioned Gold publication
+- Automated integration and unit tests
 
 ## Architecture
 
-The project follows the Medallion Architecture:
+```text
+Industrial Sensor CSV Files
+            |
+            v
+     BRONZE LAYER
+  Raw ingestion + metadata
+        Delta Lake
+            |
+            v
+     SILVER LAYER
+   Data quality validation
+     /              \
+    v                v
+Validated Silver   Quarantine
+    |
+    v
+     GOLD LAYER
+  Analytical transformations
+    |
+    +-- dim_equipment
+    +-- dim_sensor
+    +-- fact_sensor_readings
+    +-- agg_sensor_minute
+    +-- agg_sensor_hourly
+    |
+    v
+ Versioned Delta Publication
+    |
+    +-- versions/<run_id>/
+    +-- current.json
+```
 
-    Industrial Data Sources
-              |
-              v
-    RAW - Original Source Files
-              |
-              v
-    BRONZE - Data Ingestion
-    PySpark + Delta Lake
-              |
-              v
-    SILVER - Data Transformation
-    Cleaning + Validation
-              |
-              v
-    GOLD - Business Analytics
-    Industrial KPIs
+### Bronze Layer
 
-### RAW Layer
-
-Stores original industrial datasets without modifications.
-
-Example datasets:
-
-- Production records
-- Energy consumption measurements
-- Equipment sensor readings
-- Machine operating events
-
-### BRONZE Layer
-
-Ingests raw industrial data using Apache Spark.
-
-Responsibilities:
-
-- Reading source files
-- Applying ingestion schemas
-- Adding ingestion metadata
-- Writing Delta Lake tables
-- Preserving source information
-
-### SILVER Layer
-
-Transforms and validates ingested data.
+The Bronze layer ingests industrial sensor readings from CSV files.
 
 Responsibilities:
 
-- Handling missing values
-- Removing duplicates
-- Standardizing timestamps
-- Validating data types
-- Applying business rules
-- Detecting invalid measurements
+- Validate source file structure
+- Apply ingestion schemas
+- Preserve original sensor measurements
+- Add ingestion metadata
+- Persist data using Delta Lake
+- Support reproducible batch ingestion
 
-### GOLD Layer
+Documentation: [Bronze Ingestion](docs/bronze_ingestion.md)
 
-Produces curated datasets for industrial analytics.
+### Silver Layer
 
-Example KPIs:
+The Silver layer applies data quality rules to Bronze sensor readings.
 
-- Total production
-- Production efficiency
-- Energy consumption
-- Energy intensity
-- Equipment availability
-- Machine downtime
-- Production by equipment
+Responsibilities:
+
+- Validate required fields
+- Validate measurement values and timestamps
+- Detect duplicate events
+- Validate measurement types, units, and ranges
+- Separate valid and invalid records
+- Preserve data lineage
+- Support idempotent batch processing
+- Recover from tested partial processing failures
+
+Invalid records are isolated in a quarantine dataset.
+
+Documentation: [Silver Pipeline](docs/silver_pipeline.md)
+
+### Gold Layer
+
+The Gold layer transforms validated Silver readings into analytical datasets.
+
+It implements two dimensions, one fact table, and two temporal aggregations.
+
+| Table | Description | Grain |
+|---|---|---|
+| `dim_equipment` | Industrial equipment dimension | Plant and equipment |
+| `dim_sensor` | Sensor dimension | Plant, equipment, and sensor |
+| `fact_sensor_readings` | Validated measurement events | Individual sensor event |
+| `agg_sensor_minute` | Minute-level statistics | Sensor and UTC minute |
+| `agg_sensor_hourly` | Hourly statistics | Sensor and UTC hour |
+
+The temporal aggregations calculate:
+
+- Reading count
+- Average measurement value
+- Minimum measurement value
+- Maximum measurement value
+- Population standard deviation
+
+Gold also validates dimension references and reconciles fact counts against temporal aggregations.
+
+Documentation: [Gold Pipeline](docs/gold_pipeline.md)
 
 ## Technology Stack
 
 | Technology | Purpose |
-|------------|---------|
-| Python | Pipeline development |
-| Apache Spark | Distributed data processing |
-| PySpark | Spark Python API |
-| Delta Lake | Reliable lakehouse storage |
-| uv | Python dependency management |
+|---|---|
+| Python 3.11 | Pipeline development |
+| Apache Spark / PySpark | Distributed data processing |
+| Delta Lake | Transactional data storage |
+| uv | Dependency management |
 | pytest | Automated testing |
-| Git | Version control |
-| Ubuntu | Development environment |
+| Git / GitHub | Version control |
+| Ubuntu / WSL | Development environment |
 
 ## Project Structure
 
-    industrial-data-lakehouse/
-    |
-    |-- README.md
-    |-- pyproject.toml
-    |-- uv.lock
-    |-- .python-version
-    |-- .gitignore
-    |
-    |-- data/
-    |   |-- raw/
-    |   |-- bronze/
-    |   |-- silver/
-    |   |-- gold/
-    |
-    |-- src/
-    |   |-- ingestion/
-    |   |-- transformation/
-    |   |-- analytics/
-    |   |-- quality/
-    |
-    |-- tests/
-    |
-    |-- notebooks/
-    |
-    |-- scripts/
-    |
-    |-- docs/
+```text
+industrial-data-lakehouse/
+├── config/
+│   └── contracts/
+├── data/
+│   ├── raw/
+│   ├── bronze/
+│   ├── silver/
+│   ├── quarantine/
+│   └── gold/
+│       ├── versions/
+│       └── current.json
+├── docs/
+│   ├── bronze_ingestion.md
+│   ├── silver_pipeline.md
+│   └── gold_pipeline.md
+├── src/
+│   ├── ingestion/
+│   │   └── bronze_sensors.py
+│   ├── pipelines/
+│   │   ├── run_silver.py
+│   │   ├── run_gold_pipeline.py
+│   │   └── gold_publication.py
+│   ├── transformations/
+│   │   ├── silver_sensors.py
+│   │   ├── gold_equipment.py
+│   │   ├── gold_sensor.py
+│   │   ├── gold_readings.py
+│   │   ├── gold_temporal.py
+│   │   ├── gold_minute.py
+│   │   └── gold_hourly.py
+│   └── utils/
+│       └── spark_session.py
+├── tests/
+├── pyproject.toml
+├── uv.lock
+└── README.md
+```
 
-Note: This structure represents the intended project organization.
-Some directories and modules may be added progressively.
+The Gold version directories and active-version manifest are generated locally and excluded from Git.
 
 ## Installation
 
 ### Requirements
 
-- Ubuntu or another Linux distribution
-- Python compatible with the project configuration
-- Java compatible with the installed Spark version
+- Linux or WSL
+- Compatible Java runtime
+- Python 3.11
 - uv
 - Git
 
 ### Clone the Repository
 
-    git clone <repository-url>
-    cd industrial-data-lakehouse
-
-Replace <repository-url> with the actual Git repository URL.
+```bash
+git clone https://github.com/LauraMUD/industrial-data-lakehouse.git
+cd industrial-data-lakehouse
+```
 
 ### Install Dependencies
 
-Install the project dependencies using uv:
-
-    uv sync --frozen
-
-This command installs the exact dependency versions recorded in uv.lock.
-
-If the lockfile has not been generated yet, run:
-
-    uv sync
+```bash
+uv sync --frozen
+```
 
 ### Verify the Environment
 
-Check the Python version:
+```bash
+uv run python --version
+uv run python -c "import pyspark; print(pyspark.__version__)"
+uv run python -c "import delta; print('Delta Lake available')"
+```
 
-    uv run python --version
+## Pipeline Execution
 
-Check the installed PySpark version:
+The pipeline follows this processing sequence:
 
-    uv run python -c "import pyspark; print(pyspark.__version__)"
+**Raw → Bronze → Silver → Gold**
 
-Check the installed Delta Lake version:
+### 1. Bronze Ingestion
 
-    uv run python -c "import delta; print('Delta Lake available')"
+Bronze ingestion is implemented in:
 
-## Data Pipeline
+`src/ingestion/bronze_sensors.py`
 
-The intended pipeline consists of three main stages.
+See [Bronze Ingestion](docs/bronze_ingestion.md) for the supported ingestion workflow and batch parameters.
 
-### Step 1 - Bronze Ingestion
+### 2. Silver Transformation
 
-Read industrial source files and write Delta Lake tables.
+Silver orchestration is implemented in:
 
-Input:
+`src/pipelines/run_silver.py`
 
-    data/raw/
+See [Silver Pipeline](docs/silver_pipeline.md) for execution instructions, data quality rules, and quarantine behavior.
 
-Output:
+### 3. Gold Analytics
 
-    data/bronze/
+Run the complete Gold pipeline:
 
-### Step 2 - Silver Transformation
+```bash
+uv run python -m src.pipelines.run_gold_pipeline
+```
 
-Clean and validate the Bronze datasets.
+Default Silver input:
 
-Input:
+`data/silver/sensor_readings`
 
-    data/bronze/
+Default Gold output:
 
-Output:
+`data/gold/versions/<run_id>/`
 
-    data/silver/
+The pipeline builds five analytical tables, validates their consistency, and publishes a new version.
 
-### Step 3 - Gold Analytics
+The active version is recorded in:
 
-Generate industrial metrics and analytical datasets.
+`data/gold/current.json`
 
-Input:
+Consumers should use the active-version reference rather than accessing legacy Gold table paths.
 
-    data/silver/
+## Gold Versioned Publication
 
-Output:
+The Gold pipeline uses isolated version directories to avoid exposing incomplete publication runs.
 
-    data/gold/
+Publication steps:
 
-Pipeline entry points will be documented as they are implemented.
+1. Build and validate analytical DataFrames.
+2. Write five Delta tables to a new version directory.
+3. Validate persisted row counts and schema compatibility.
+4. Update the active-version manifest.
+5. Preserve the previously published version.
+
+If a handled exception occurs before publication, the previous version remains active and the incomplete version is removed on a best-effort basis.
+
+This mechanism uses local filesystem semantics and does not provide distributed multi-table transactions or concurrent-writer coordination.
 
 ## Data Quality
 
-Data quality is a fundamental part of the project.
+Data quality checks are applied across the Medallion Architecture.
 
-Planned validations include:
+Implemented checks include:
 
-- Null value detection
-- Duplicate record detection
+- Required field validation
 - Schema validation
-- Timestamp consistency
-- Valid measurement ranges
-- Referential integrity
-- Industrial business rule validation
+- Duplicate event detection
+- Measurement value validation
+- Timestamp validation
+- Measurement type and unit consistency
+- Measurement range validation
+- Business-key uniqueness
+- Fact-to-dimension referential integrity
+- Temporal aggregation reconciliation
 
-Invalid records may be isolated for further analysis.
+Invalid Silver records are separated into quarantine.
 
-## Industrial KPIs
+## Industrial Analytics
 
-The Gold layer is designed to calculate industrial performance indicators.
+The implemented Gold layer supports sensor-based industrial monitoring.
 
-### Production Efficiency
+Available analytical metrics include:
 
-    Production Efficiency (%) =
-        (Actual Production / Target Production) * 100
+- Sensor reading frequency
+- Average sensor measurement by minute
+- Average sensor measurement by hour
+- Minimum and maximum measurements
+- Measurement variability
 
-### Energy Intensity
+Additional business KPIs are planned for future development:
 
-    Energy Intensity =
-        Total Energy Consumption / Total Production
+- Production efficiency
+- Energy intensity
+- Equipment availability
+- Machine downtime
+- Production throughput
 
-### Equipment Availability
+These business KPIs are not yet implemented.
 
-    Equipment Availability (%) =
-        (Operating Time / Planned Production Time) * 100
+## Automated Testing
 
-### Downtime
+The project uses pytest for unit and integration testing.
 
-    Total Downtime =
-        Sum of Equipment Downtime Intervals
+Run the complete test suite:
 
-These metrics can support operational monitoring and industrial optimization.
+```bash
+uv run pytest -v
+```
 
-## Testing
+**Latest validated result: 77 tests passed (November 20, 2026).**
 
-Automated testing will be implemented using pytest.
+| Component | Tests |
+|---|---:|
+| Bronze and Delta | 7 |
+| Silver | 18 |
+| Gold transformations | 45 |
+| Gold pipeline and publication | 7 |
+| **Total** | **77** |
 
-Run tests with:
+Tests cover data quality, transformations, persistence, idempotency, reconciliation, versioned publication, and simulated failure scenarios.
 
-    uv run pytest
-
-Tests will cover:
-
-- Data transformation logic
-- Data quality rules
-- Schema validation
-- KPI calculations
-- Pipeline behavior
+Some Gold integration tests currently require a locally prepared Silver Delta dataset.
 
 ## Reproducibility
 
-The project uses uv for dependency management.
+The project uses `uv` to manage Python dependencies.
 
-The pyproject.toml file defines project dependencies.
+- `pyproject.toml` defines project dependencies.
+- `uv.lock` records resolved dependency versions.
 
-The uv.lock file records resolved dependency versions.
+To recreate the Python environment:
 
-To reproduce the development environment:
+```bash
+uv sync --frozen
+```
 
-    uv sync --frozen
-
-This ensures consistent Python dependencies across compatible environments.
+The generated Delta datasets are excluded from version control.
 
 ## Development Roadmap
 
-- [ ] Configure the Python environment
-- [ ] Configure Apache Spark and Delta Lake
-- [ ] Create synthetic industrial datasets
-- [ ] Implement Bronze ingestion pipelines
-- [ ] Implement Silver transformations
-- [ ] Implement data quality checks
-- [ ] Implement Gold analytical tables
-- [ ] Calculate industrial KPIs
-- [ ] Add automated tests
-- [ ] Document pipeline execution
+- [x] Configure Python and uv
+- [x] Configure Apache Spark and Delta Lake
+- [x] Implement Bronze sensor ingestion
+- [x] Implement Silver transformations
+- [x] Implement data quality checks and quarantine
+- [x] Implement Gold dimensions and fact table
+- [x] Implement minute and hourly aggregations
+- [x] Implement versioned Gold publication
+- [x] Add automated tests
+- [x] Document Bronze, Silver, and Gold
+- [ ] Implement additional industrial business KPIs
 - [ ] Add orchestration and monitoring
+- [ ] Implement CI/CD
+- [ ] Deploy to cloud infrastructure
 
 ## Future Improvements
 
 Potential extensions include:
 
-- Apache Airflow orchestration
-- Streaming ingestion
-- Industrial IoT data processing
-- Data quality monitoring
-- Automated CI/CD pipelines
+- Apache Airflow or Dagster orchestration
+- Streaming industrial IoT ingestion
+- Incremental Gold processing
+- Automated data quality monitoring
 - Cloud object storage integration
+- Version retention and cleanup
+- Concurrent-publication control
+- Independent integration-test fixtures
 - Business intelligence dashboards
 
 ## Project Goals
 
-The main goal of this project is to demonstrate practical data engineering skills through a reproducible industrial lakehouse implementation.
+This project demonstrates practical data engineering skills through an industrial lakehouse implementation.
 
-The project emphasizes:
+The main engineering principles are:
 
-- Clean architecture
-- Modular pipeline development
+- Modular architecture
 - Data reliability
 - Reproducibility
+- Automated testing
+- Data lineage
 - Industrial analytics
-- Software engineering best practices
+- Maintainable software design
 
 ## License
 
