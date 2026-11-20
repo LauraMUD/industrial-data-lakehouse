@@ -40,7 +40,29 @@ Located in `src/pipelines/`:
 - `run_gold_pipeline.py` — Gold orchestration and execution
 - `gold_publication.py` — Versioned publication and active-version resolution
 
-The pipeline reads validated Silver data, constructs analytical tables, verifies referential integrity, reconciles aggregation counts, and publishes a complete Gold version.
+
+**Workflow orchestration**
+
+Located in `pipeline/`:
+
+- `industrial_flow.py` — Prefect workflow coordinating Bronze,
+  Silver, and Gold.
+- `runner.py` — Subprocess execution, timeout enforcement,
+  logging, and execution metadata.
+
+Prefect controls when the Gold pipeline executes and
+propagates failures.
+
+The Gold publication module remains responsible for
+writing versioned Delta tables and updating the
+active-version manifest.
+
+These responsibilities are intentionally separated.
+
+The Gold pipeline reads validated Silver data, constructs
+analytical tables, verifies referential integrity,
+reconciles aggregation counts, and publishes a complete
+Gold version.
 
 ## 3. Analytical Data Model
 
@@ -178,6 +200,24 @@ Run the Gold pipeline from the repository root:
 uv run python -m src.pipelines.run_gold_pipeline
 ```
 
+
+The CLI also supports configurable input and output paths:
+
+```bash
+uv run python -m src.pipelines.run_gold_pipeline \
+  --silver-path data/silver/sensor_readings \
+  --gold-path data/gold
+```
+
+`--silver-path` identifies the validated Silver Delta dataset.
+
+`--gold-path` identifies the Gold publication root,
+where `versions/` and `current.json` are maintained.
+
+When these arguments are omitted, the pipeline uses
+the default paths documented below.
+
+
 Default input:
 
 `data/silver/sensor_readings`
@@ -188,6 +228,36 @@ Default output:
 
 The pipeline prints the published version identifier and record counts for the five analytical tables.
 
+
+### Prefect Integration
+
+Gold runs as the third and final task of the
+`industrial-lakehouse` Prefect workflow.
+
+The Gold task executes only after successful
+Bronze and Silver tasks.
+
+Prefect invokes the Gold CLI through the subprocess
+Runner, passing the configured Silver and Gold paths.
+
+If Gold fails, Prefect reports the task and workflow
+failure.
+
+A failed Gold execution does not automatically
+trigger a retry because the task uses `retries=0`.
+
+For handled publication failures, the existing Gold
+publication mechanism preserves the previously
+active version and attempts to clean up incomplete
+version directories.
+
+Prefect does not provide additional transactional
+guarantees for the five Gold Delta tables.
+
+See [Orchestration](orchestration.md) for execution
+and operational details.
+
+
 ## 8. Automated Testing
 
 Run the complete project test suite:
@@ -196,9 +266,14 @@ Run the complete project test suite:
 uv run pytest -v
 ```
 
-Validation performed on November 20, 2026:
+Complete regression validation performed on
+November 20, 2026:
 
-**77 tests passed.**
+89 tests passed.
+
+This includes the original Bronze, Silver, Gold,
+and Delta Lake tests, together with the new Prefect
+workflow and subprocess Runner tests.
 
 Coverage includes:
 
@@ -242,6 +317,13 @@ Known limitations include:
 - Some integration tests depend on a pre-existing local Silver dataset.
 - Publication validation checks counts and schema compatibility but does not compare every persisted value.
 - Readers must consistently use a pinned version identifier to avoid mixing versions.
+- Prefect tasks currently use `retries=0`; automatic
+  recovery policies are not implemented.
+- The subprocess Runner enforces a timeout on the
+  direct subprocess but does not guarantee termination
+  of every descendant Spark process.
+- Persistent operational audit tables and centralized
+  production monitoring are not implemented.
 
 ## 11. Future Improvements
 
@@ -251,7 +333,7 @@ Potential extensions include:
 - Version retention and cleanup policies
 - Concurrent-publication control
 - Data quality metrics and observability
-- Workflow orchestration
+- Scheduled Prefect deployments and production monitoring
 - Incremental Gold processing
 - Deployment to managed cloud storage
 - Automated CI validation

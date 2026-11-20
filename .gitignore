@@ -28,6 +28,8 @@ data/silver/*
 data/quarantine/*
 data/gold/*
 data/raw/*
+/data/orchestration_validation/
+
 
 # Preserve data directories
 !data/bronze/.gitkeep
@@ -35,6 +37,7 @@ data/raw/*
 !data/quarantine/.gitkeep
 !data/gold/.gitkeep
 !data/raw/.gitkeep
+
 
 # Diagnostic logs
 *.log

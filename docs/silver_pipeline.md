@@ -86,6 +86,38 @@ uv run python -m src.pipelines.run_silver \
 The pipeline also supports custom Bronze, Silver and
 Quarantine paths.
 
+
+### Prefect Orchestration
+
+Silver can run independently through its Python CLI
+or as the second task of the Prefect workflow.
+
+The workflow is defined in:
+
+`pipeline/industrial_flow.py`
+
+The Silver task runs after successful Bronze ingestion
+and before Gold analytics.
+
+Prefect invokes the Silver CLI through `pipeline/runner.py`,
+which executes the stage in a separate Python subprocess.
+
+The workflow passes configurable paths using:
+
+- `--bronze-path`
+- `--silver-path`
+- `--quarantine-path`
+
+If Silver fails, the workflow stops and Gold is not executed.
+
+The current Prefect tasks use `retries=0`.
+Recovery requires investigating the failure and explicitly
+rerunning the workflow or the affected stage.
+
+See [Orchestration](orchestration.md) for workflow execution,
+timeouts, logging, and failure handling.
+
+
 ## 6. Idempotency
 
 Each batch is written using Delta Lake.
@@ -120,6 +152,27 @@ the two writes.
 A production implementation should introduce a batch
 completion or publication mechanism to prevent consumers
 from reading incomplete results.
+
+
+### Recovery under Prefect
+
+Prefect detects a failed Silver subprocess and marks
+the corresponding task as failed.
+
+The Gold task is not executed after a Silver failure.
+
+Prefect does not provide a multi-table transaction across
+Silver and Quarantine.
+
+Because automatic task retries are disabled, operators
+must investigate the error and initiate recovery.
+
+The existing batch-level idempotency allows a batch to
+be reprocessed without accumulating duplicate records.
+
+Recovery of a partially completed Silver/Quarantine
+update has been verified through automated tests.
+
 
 ## 8. Validation Results
 
@@ -158,11 +211,24 @@ The suite includes:
 - Pipeline integration tests.
 - Partial failure recovery tests.
 
-At the end of the initial implementation, all 25 tests passed.
+The initial Bronze and Silver implementation passed 25 tests.
+
+The complete project regression suite passed 89 tests
+on November 20, 2026, including Prefect orchestration
+and subprocess Runner tests.
+
 
 ## 10. Next Steps
 
-- Introduce batch execution tracking and publication controls.
-- Add operational metrics and structured logging.
-- Implement the Gold analytical layer.
+The Gold analytical layer and Prefect orchestration
+are implemented.
+
+Remaining improvements include:
+
+- Introduce batch completion and publication controls
+  across Silver and Quarantine.
+- Add persistent operational metrics and structured
+  execution audit records.
+- Implement configurable recovery and retry policies.
 - Extend the pipeline with additional industrial datasets.
+- Introduce cloud storage and production deployment.

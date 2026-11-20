@@ -3,6 +3,7 @@
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pathlib import Path
+import argparse
 
 from src.transformations.gold_equipment import build_dim_equipment
 from src.transformations.gold_sensor import build_dim_sensor
@@ -171,15 +172,38 @@ def run_gold_pipeline(
     return counts
 
 
+
 def main() -> None:
     """Run the Gold pipeline from the command line."""
 
     from src.utils.spark_session import create_spark_session
 
+    parser = argparse.ArgumentParser(
+        description="Industrial Gold analytics pipeline"
+    )
+
+    parser.add_argument(
+        "--silver-path",
+        default="data/silver/sensor_readings",
+        help="Input Silver Delta table path",
+    )
+
+    parser.add_argument(
+        "--gold-path",
+        default="data/gold",
+        help="Output Gold publication directory",
+    )
+
+    args = parser.parse_args()
+
     spark = create_spark_session("IndustrialGoldPipeline")
 
     try:
-        counts = run_gold_pipeline(spark)
+        counts = run_gold_pipeline(
+            spark,
+            silver_path=args.silver_path,
+            gold_path=args.gold_path,
+        )
 
         print("\n=== GOLD PIPELINE COMPLETED ===")
 
@@ -190,6 +214,7 @@ def main() -> None:
 
     finally:
         spark.stop()
+
 
 
 if __name__ == "__main__":

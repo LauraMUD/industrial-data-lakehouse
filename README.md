@@ -1,12 +1,13 @@
+
 # Industrial Data Lakehouse
 
-A reproducible industrial data engineering project built with Apache Spark, Delta Lake, Python, and uv.
+A reproducible industrial data engineering project built with Apache Spark, Delta Lake, Python, Prefect, and uv.
 
 ## Project Overview
 
 Industrial Data Lakehouse is an end-to-end data engineering project designed to ingest, validate, transform, and analyze industrial sensor data.
 
-The project implements the **Medallion Architecture (Bronze, Silver, Gold)** with a focus on data reliability, reproducibility, automated testing, and industrial analytics.
+The project implements the **Medallion Architecture (Bronze, Silver, Gold)** with a focus on data reliability, reproducibility, automated testing, workflow orchestration, and industrial analytics.
 
 The current implementation includes:
 
@@ -17,41 +18,67 @@ The current implementation includes:
 - Minute-level and hourly sensor aggregations
 - Referential integrity and reconciliation checks
 - Versioned Gold publication
-- Automated integration and unit tests
+- Prefect 3 workflow orchestration across Bronze, Silver, and Gold
+- Isolated subprocess execution with timeouts and failure propagation
+- Execution logging and structured stage metadata
+- Automated unit and integration tests
 
 ## Architecture
 
+The Medallion pipeline is orchestrated by Prefect 3.
+
+The workflow executes Bronze, Silver, and Gold sequentially. Each stage runs in a separate Python subprocess through `pipeline/runner.py`.
+
+Prefect manages execution order and failure propagation, while each layer retains responsibility for its own transformations, validations, and Delta Lake persistence.
+
 ```text
-Industrial Sensor CSV Files
-            |
-            v
-     BRONZE LAYER
-  Raw ingestion + metadata
-        Delta Lake
-            |
-            v
-     SILVER LAYER
-   Data quality validation
-     /              \
-    v                v
-Validated Silver   Quarantine
-    |
-    v
-     GOLD LAYER
-  Analytical transformations
-    |
-    +-- dim_equipment
-    +-- dim_sensor
-    +-- fact_sensor_readings
-    +-- agg_sensor_minute
-    +-- agg_sensor_hourly
-    |
-    v
- Versioned Delta Publication
-    |
-    +-- versions/<run_id>/
-    +-- current.json
+              Prefect 3 Workflow
+              industrial-lakehouse
+                       |
+                       v
+              Industrial Sensor CSV
+                       |
+                       v
+                  BRONZE LAYER
+              Raw ingestion + metadata
+                    Delta Lake
+                       |
+                       v
+                  SILVER LAYER
+              Data quality validation
+                   /         \
+                  v           v
+            Validated       Quarantine
+              Silver        Rejected data
+                  |
+                  v
+                  GOLD LAYER
+              Analytical transformations
+                  |
+                  +-- dim_equipment
+                  +-- dim_sensor
+                  +-- fact_sensor_readings
+                  +-- agg_sensor_minute
+                  +-- agg_sensor_hourly
+                  |
+                  v
+             Versioned Delta Publication
+                  |
+                  +-- versions/<run_id>/
+                  +-- current.json
 ```
+
+Each workflow stage is executed through the subprocess Runner.
+
+The Runner provides:
+
+- Isolated Python subprocess execution
+- Configurable execution timeouts
+- Standard output and error capture
+- Execution duration measurement
+- Exit-code validation
+- Structured execution metadata
+- Failure propagation to Prefect
 
 ### Bronze Layer
 
@@ -65,6 +92,8 @@ Responsibilities:
 - Add ingestion metadata
 - Persist data using Delta Lake
 - Support reproducible batch ingestion
+
+Bronze can execute independently or as the first Prefect task.
 
 Documentation: [Bronze Ingestion](docs/bronze_ingestion.md)
 
@@ -84,6 +113,10 @@ Responsibilities:
 - Recover from tested partial processing failures
 
 Invalid records are isolated in a quarantine dataset.
+
+Silver executes after successful Bronze ingestion.
+
+Silver and Quarantine are separate Delta tables. Their writes do not form a single atomic transaction.
 
 Documentation: [Silver Pipeline](docs/silver_pipeline.md)
 
@@ -111,7 +144,38 @@ The temporal aggregations calculate:
 
 Gold also validates dimension references and reconciles fact counts against temporal aggregations.
 
+Gold executes after successful Bronze and Silver processing.
+
+The Gold publication mechanism is independent of Prefect and manages versioned Delta tables and the active-version manifest.
+
 Documentation: [Gold Pipeline](docs/gold_pipeline.md)
+
+### Workflow Orchestration
+
+Prefect 3 coordinates the complete Medallion pipeline.
+
+The workflow is defined in:
+
+`pipeline/industrial_flow.py`
+
+Subprocess execution is implemented in:
+
+`pipeline/runner.py`
+
+The workflow:
+
+1. Executes Bronze ingestion.
+2. Executes Silver validation and quarantine.
+3. Executes Gold analytical transformations and publication.
+4. Propagates failures and prevents downstream execution after a failed stage.
+
+The current tasks use `retries=0`.
+
+The default subprocess timeout is 600 seconds.
+
+The implementation provides local execution logging and Prefect task states, but does not include persistent operational audit tables or production monitoring infrastructure.
+
+Documentation: [Prefect Orchestration](docs/orchestration.md)
 
 ## Technology Stack
 
@@ -120,6 +184,7 @@ Documentation: [Gold Pipeline](docs/gold_pipeline.md)
 | Python 3.11 | Pipeline development |
 | Apache Spark / PySpark | Distributed data processing |
 | Delta Lake | Transactional data storage |
+| Prefect 3 | Workflow orchestration and execution states |
 | uv | Dependency management |
 | pytest | Automated testing |
 | Git / GitHub | Version control |
@@ -142,7 +207,12 @@ industrial-data-lakehouse/
 ├── docs/
 │   ├── bronze_ingestion.md
 │   ├── silver_pipeline.md
-│   └── gold_pipeline.md
+│   ├── gold_pipeline.md
+│   └── orchestration.md
+├── pipeline/
+│   ├── __init__.py
+│   ├── industrial_flow.py
+│   └── runner.py
 ├── src/
 │   ├── ingestion/
 │   │   └── bronze_sensors.py
@@ -161,12 +231,30 @@ industrial-data-lakehouse/
 │   └── utils/
 │       └── spark_session.py
 ├── tests/
+│   ├── test_bronze_sensors.py
+│   ├── test_delta_lake.py
+│   ├── test_silver_sensors.py
+│   ├── test_gold_equipment.py
+│   ├── test_gold_sensor.py
+│   ├── test_gold_readings.py
+│   ├── test_gold_minute.py
+│   ├── test_gold_hourly.py
+│   ├── test_gold_pipeline.py
+│   ├── test_industrial_flow.py
+│   └── test_runner.py
+├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
 ```
 
-The Gold version directories and active-version manifest are generated locally and excluded from Git.
+The `data/` directories contain locally generated Delta datasets.
+
+Gold version directories and the active-version manifest are generated locally and excluded from Git.
+
+The isolated orchestration validation datasets under `data/orchestration_validation/` are also excluded from version control.
+
+Local environment configuration is stored in `.env`, which is not committed to Git.
 
 ## Installation
 
@@ -197,6 +285,7 @@ uv sync --frozen
 uv run python --version
 uv run python -c "import pyspark; print(pyspark.__version__)"
 uv run python -c "import delta; print('Delta Lake available')"
+uv run python -c "import prefect; print(prefect.__version__)"
 ```
 
 ## Pipeline Execution
@@ -205,23 +294,87 @@ The pipeline follows this processing sequence:
 
 **Raw → Bronze → Silver → Gold**
 
+There are two execution modes:
+
+- Complete workflow execution using Prefect.
+- Independent execution of individual pipeline stages.
+
+### Complete Pipeline with Prefect
+
+The complete pipeline can be executed through Prefect 3.
+
+Create a local `.env` file containing:
+
+```dotenv
+PREFECT_SERVER_ANALYTICS_ENABLED=false
+```
+
+The `.env` file is excluded from Git.
+
+Run the complete workflow from the repository root:
+
+```bash
+uv run --env-file .env python -c \
+  "from pipeline.industrial_flow import industrial_lakehouse_flow; industrial_lakehouse_flow()"
+```
+
+The workflow executes:
+
+1. Bronze ingestion.
+2. Silver validation and quarantine.
+3. Gold analytical transformation and versioned publication.
+
+Each stage runs in a separate Python subprocess.
+
+If a stage fails, downstream stages are not executed.
+
+The Runner enforces a default subprocess timeout of 600 seconds.
+
+Automatic Prefect task retries are currently disabled.
+
+The workflow supports configurable source, Bronze, Silver, Quarantine, and Gold paths.
+
+**Important:** Running the workflow with default paths can modify existing local Delta datasets.
+
+For isolated validation runs, use the dedicated paths documented in [Prefect Orchestration](docs/orchestration.md).
+
 ### 1. Bronze Ingestion
 
 Bronze ingestion is implemented in:
 
 `src/ingestion/bronze_sensors.py`
 
-See [Bronze Ingestion](docs/bronze_ingestion.md) for the supported ingestion workflow and batch parameters.
+Example:
+
+```bash
+uv run python -m src.ingestion.bronze_sensors \
+  --source data/raw/sensor_readings/sensors_batch_001.csv \
+  --target data/bronze/sensor_readings
+```
+
+See [Bronze Ingestion](docs/bronze_ingestion.md) for data contracts, metadata, batch processing, and idempotency.
 
 ### 2. Silver Transformation
 
-Silver orchestration is implemented in:
+Silver execution is implemented in:
 
 `src/pipelines/run_silver.py`
 
-See [Silver Pipeline](docs/silver_pipeline.md) for execution instructions, data quality rules, and quarantine behavior.
+Example:
+
+```bash
+uv run python -m src.pipelines.run_silver
+```
+
+The pipeline supports custom Bronze, Silver, and Quarantine paths.
+
+See [Silver Pipeline](docs/silver_pipeline.md) for execution parameters, data quality rules, and failure recovery.
 
 ### 3. Gold Analytics
+
+Gold execution is implemented in:
+
+`src/pipelines/run_gold_pipeline.py`
 
 Run the complete Gold pipeline:
 
@@ -229,21 +382,33 @@ Run the complete Gold pipeline:
 uv run python -m src.pipelines.run_gold_pipeline
 ```
 
+Custom paths:
+
+```bash
+uv run python -m src.pipelines.run_gold_pipeline \
+  --silver-path data/silver/sensor_readings \
+  --gold-path data/gold
+```
+
 Default Silver input:
 
 `data/silver/sensor_readings`
 
-Default Gold output:
+Default Gold publication root:
 
-`data/gold/versions/<run_id>/`
+`data/gold`
 
 The pipeline builds five analytical tables, validates their consistency, and publishes a new version.
+
+The published tables are stored under:
+
+`data/gold/versions/<run_id>/`
 
 The active version is recorded in:
 
 `data/gold/current.json`
 
-Consumers should use the active-version reference rather than accessing legacy Gold table paths.
+Consumers should resolve the active version through the manifest rather than accessing legacy Gold table paths.
 
 ## Gold Versioned Publication
 
@@ -260,6 +425,8 @@ Publication steps:
 If a handled exception occurs before publication, the previous version remains active and the incomplete version is removed on a best-effort basis.
 
 This mechanism uses local filesystem semantics and does not provide distributed multi-table transactions or concurrent-writer coordination.
+
+Prefect orchestrates the Gold execution but does not replace or extend these transactional guarantees.
 
 ## Data Quality
 
@@ -278,7 +445,7 @@ Implemented checks include:
 - Fact-to-dimension referential integrity
 - Temporal aggregation reconciliation
 
-Invalid Silver records are separated into quarantine.
+Invalid Silver records are separated into Quarantine.
 
 ## Industrial Analytics
 
@@ -302,6 +469,42 @@ Additional business KPIs are planned for future development:
 
 These business KPIs are not yet implemented.
 
+## Orchestration and Observability
+
+The project uses Prefect 3 for local workflow orchestration.
+
+The workflow exposes task and flow execution states.
+
+The subprocess Runner captures:
+
+- Stage name
+- Executed Python command
+- Execution duration
+- Exit code
+- Standard output
+- Standard error
+- Failure exceptions
+
+Successful stages return a `StageResult`.
+
+Subprocess failures raise `StageExecutionError`.
+
+For nonzero exit codes, execution metadata is available through the exception's `result` attribute.
+
+Timeout failures raise `StageTimeoutError`.
+
+The current implementation does not include:
+
+- Scheduled Prefect deployments
+- Automatic task retries
+- Persistent operational audit tables
+- Centralized production monitoring
+- Alerting infrastructure
+
+The subprocess timeout does not guarantee termination of every descendant Spark or Java process.
+
+See [Prefect Orchestration](docs/orchestration.md) for operational details.
+
 ## Automated Testing
 
 The project uses pytest for unit and integration testing.
@@ -309,22 +512,39 @@ The project uses pytest for unit and integration testing.
 Run the complete test suite:
 
 ```bash
-uv run pytest -v
+uv run --env-file .env pytest -v
 ```
 
-**Latest validated result: 77 tests passed (November 20, 2026).**
+**Latest validated result: 89 tests passed (November 20, 2026).**
 
 | Component | Tests |
 |---|---:|
-| Bronze and Delta | 7 |
+| Bronze and Delta Lake | 7 |
 | Silver | 18 |
 | Gold transformations | 45 |
 | Gold pipeline and publication | 7 |
-| **Total** | **77** |
+| Prefect orchestration | 5 |
+| Subprocess Runner | 7 |
+| **Total** | **89** |
 
-Tests cover data quality, transformations, persistence, idempotency, reconciliation, versioned publication, and simulated failure scenarios.
+The tests cover:
+
+- Bronze ingestion and Delta Lake persistence
+- Silver data quality and quarantine
+- Batch idempotency and failure recovery
+- Gold dimensions and fact transformations
+- Minute-level and hourly aggregations
+- Referential integrity and reconciliation
+- Gold versioned publication
+- Prefect workflow execution order
+- Failure propagation between stages
+- Configurable pipeline paths
+- Subprocess execution and timeouts
+- Structured execution errors
 
 Some Gold integration tests currently require a locally prepared Silver Delta dataset.
+
+A real end-to-end Prefect execution was also completed successfully using isolated validation paths.
 
 ## Reproducibility
 
@@ -341,6 +561,8 @@ uv sync --frozen
 
 The generated Delta datasets are excluded from version control.
 
+Prefect execution can be configured locally through an ignored `.env` file.
+
 ## Development Roadmap
 
 - [x] Configure Python and uv
@@ -353,8 +575,11 @@ The generated Delta datasets are excluded from version control.
 - [x] Implement versioned Gold publication
 - [x] Add automated tests
 - [x] Document Bronze, Silver, and Gold
+- [x] Implement Prefect workflow orchestration
+- [x] Add subprocess execution, timeouts, and failure logging
+- [x] Document orchestration and operational limitations
 - [ ] Implement additional industrial business KPIs
-- [ ] Add orchestration and monitoring
+- [ ] Add persistent monitoring, alerting, and scheduled deployments
 - [ ] Implement CI/CD
 - [ ] Deploy to cloud infrastructure
 
@@ -362,7 +587,9 @@ The generated Delta datasets are excluded from version control.
 
 Potential extensions include:
 
-- Apache Airflow or Dagster orchestration
+- Scheduled Prefect deployments and production monitoring
+- Persistent operational audit tables and alerting
+- Configurable retry and recovery policies
 - Streaming industrial IoT ingestion
 - Incremental Gold processing
 - Automated data quality monitoring
@@ -370,6 +597,7 @@ Potential extensions include:
 - Version retention and cleanup
 - Concurrent-publication control
 - Independent integration-test fixtures
+- Improved Spark subprocess lifecycle management
 - Business intelligence dashboards
 
 ## Project Goals
@@ -384,6 +612,8 @@ The main engineering principles are:
 - Automated testing
 - Data lineage
 - Industrial analytics
+- Workflow orchestration
+- Execution observability
 - Maintainable software design
 
 ## License

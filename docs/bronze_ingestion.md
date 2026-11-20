@@ -89,6 +89,41 @@ Specific batch:
     uv run python -m src.ingestion.bronze_sensors \
       --source data/raw/sensor_readings/sensors_batch_002.csv
 
+
+## Prefect Orchestration
+
+Bronze ingestion can run independently through its Python CLI
+or as the first task of the Prefect workflow.
+
+The orchestration entry point is:
+
+`pipeline/industrial_flow.py`
+
+Prefect executes Bronze before Silver and Gold.
+
+The Bronze task invokes the ingestion module through
+`pipeline/runner.py`, which runs the stage in a separate
+Python subprocess.
+
+The orchestrated execution supports configurable source
+and Bronze destination paths.
+
+Example standalone execution with a custom destination:
+
+```bash
+uv run python -m src.ingestion.bronze_sensors \
+  --source data/raw/sensor_readings/sensors_batch_001.csv \
+  --target data/bronze/sensor_readings
+```
+
+If Bronze fails, the Prefect workflow does not proceed
+to Silver or Gold.
+
+Execution timeouts, logging, failure propagation, and
+workflow-level configuration are documented in
+[Orchestration](orchestration.md).
+
+
 ## Testing
 
 Run all tests:
@@ -120,7 +155,9 @@ The original non-numeric value ERROR is preserved in Bronze.
 - Source checksums are not yet implemented.
 - Reprocessing updates ingestion metadata.
 - CSV parsing and malformed-record handling need further hardening.
-- No quarantine mechanism is implemented.
+- Bronze does not implement its own quarantine mechanism.
+  Data quality rejection and quarantine are handled
+  downstream by the Silver layer.
 - No centralized ingestion audit table exists.
 - Concurrent writers have not been tested.
 - Cloud storage integration is not yet implemented.
@@ -129,7 +166,8 @@ The original non-numeric value ERROR is preserved in Bronze.
 
 - Content-based batch identification
 - Schema evolution policies
-- Quarantine and dead-letter processing
+- Optional ingestion-level dead-letter handling for
+  malformed source records
 - Ingestion audit logging
 - Data quality monitoring
 - Cloud object storage integration
