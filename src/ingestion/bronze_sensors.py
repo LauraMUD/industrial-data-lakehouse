@@ -2,8 +2,8 @@
 
 import argparse
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession
@@ -12,22 +12,14 @@ from pyspark.sql.types import StringType, StructField, StructType
 
 from src.utils.spark_session import create_spark_session
 
-
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-DEFAULT_SOURCE = (
-    BASE_DIR
-    / "data"
-    / "raw"
-    / "sensor_readings"
-    / "sensors_batch_001.csv"
-)
+DEFAULT_SOURCE = BASE_DIR / "data" / "raw" / "sensor_readings" / "sensors_batch_001.csv"
 
 DEFAULT_TARGET = BASE_DIR / "data" / "bronze" / "sensor_readings"
 
-CONTRACT_PATH = (
-    BASE_DIR / "config" / "contracts" / "sensor_readings.json"
-)
+CONTRACT_PATH = BASE_DIR / "config" / "contracts" / "sensor_readings.json"
+
 
 def validate_batch_id(batch_id: str) -> str:
     """Validate batch identifiers used in Delta predicates."""
@@ -39,6 +31,7 @@ def validate_batch_id(batch_id: str) -> str:
         )
 
     return batch_id
+
 
 def load_contract(path: Path) -> dict:
     """Load the dataset contract."""
@@ -59,27 +52,19 @@ def read_source(
     expected_columns = contract["columns"]
 
     with source_path.open(encoding="utf-8-sig") as file:
-        header = file.readline().rstrip("\r\n").split(
-            contract["delimiter"]
-        )
+        header = file.readline().rstrip("\r\n").split(contract["delimiter"])
 
     if header != expected_columns:
         raise ValueError(
-            f"CSV header mismatch. "
-            f"Expected: {expected_columns}. "
-            f"Received: {header}"
+            f"CSV header mismatch. Expected: {expected_columns}. Received: {header}"
         )
 
     schema = StructType(
-        [
-            StructField(column, StringType(), True)
-            for column in expected_columns
-        ]
+        [StructField(column, StringType(), True) for column in expected_columns]
     )
 
     return (
-        spark.read
-        .option("header", contract["header"])
+        spark.read.option("header", contract["header"])
         .option("sep", contract["delimiter"])
         .option("mode", "FAILFAST")
         .schema(schema)
@@ -95,8 +80,7 @@ def enrich_bronze(
     """Add technical ingestion metadata."""
 
     return (
-        df
-        .withColumn("batch_id", F.lit(batch_id))
+        df.withColumn("batch_id", F.lit(batch_id))
         .withColumn("source_file", F.lit(source_path.name))
         .withColumn(
             "ingestion_timestamp",
@@ -117,8 +101,7 @@ def write_bronze(
 
     if DeltaTable.isDeltaTable(spark, target):
         (
-            df.write
-            .format("delta")
+            df.write.format("delta")
             .mode("overwrite")
             .option(
                 "replaceWhere",
@@ -127,12 +110,7 @@ def write_bronze(
             .save(target)
         )
     else:
-        (
-            df.write
-            .format("delta")
-            .mode("overwrite")
-            .save(target)
-        )
+        (df.write.format("delta").mode("overwrite").save(target))
 
 
 def ingest(
@@ -175,9 +153,7 @@ def ingest(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Industrial sensor Bronze ingestion"
-    )
+    parser = argparse.ArgumentParser(description="Industrial sensor Bronze ingestion")
 
     parser.add_argument(
         "--source",

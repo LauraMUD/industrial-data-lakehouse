@@ -4,11 +4,9 @@ import logging
 import subprocess
 import sys
 import time
-
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,9 +52,7 @@ def run_stage(
     """Execute one pipeline stage in a separate Python process."""
 
     if timeout_seconds <= 0:
-        raise ValueError(
-            "timeout_seconds must be greater than zero"
-        )
+        raise ValueError("timeout_seconds must be greater than zero")
 
     command = [
         sys.executable,
@@ -88,16 +84,14 @@ def run_stage(
         duration = time.monotonic() - start
 
         logger.error(
-            "Stage=%s timed out after %.2fs "
-            "(limit=%ss)",
+            "Stage=%s timed out after %.2fs (limit=%ss)",
             stage,
             duration,
             timeout_seconds,
         )
 
         raise StageTimeoutError(
-            f"Stage {stage} exceeded "
-            f"{timeout_seconds} seconds"
+            f"Stage {stage} exceeded {timeout_seconds} seconds"
         ) from exc
 
     except OSError as exc:
@@ -106,9 +100,7 @@ def run_stage(
             stage,
         )
 
-        raise StageExecutionError(
-            f"Stage {stage} could not start"
-        ) from exc
+        raise StageExecutionError(f"Stage {stage} could not start") from exc
 
     duration = time.monotonic() - start
 
@@ -137,8 +129,7 @@ def run_stage(
 
     if result.return_code != 0:
         logger.error(
-            "Stage=%s failed return_code=%s "
-            "duration=%.2fs stderr=%s",
+            "Stage=%s failed return_code=%s duration=%.2fs stderr=%s",
             stage,
             result.return_code,
             duration,
@@ -146,14 +137,12 @@ def run_stage(
         )
 
         raise StageExecutionError(
-            f"Stage {stage} failed with "
-            f"exit code {result.return_code}",
+            f"Stage {stage} failed with exit code {result.return_code}",
             result=result,
         )
 
     logger.info(
-        "Stage=%s completed "
-        "return_code=%s duration=%.2fs",
+        "Stage=%s completed return_code=%s duration=%.2fs",
         stage,
         result.return_code,
         duration,

@@ -10,8 +10,7 @@ os.environ["PYSPARK_PYTHON"] = sys.executable
 os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 builder = (
-    SparkSession.builder
-    .appName("IndustrialLakehouseDeltaTest")
+    SparkSession.builder.appName("IndustrialLakehouseDeltaTest")
     .master("local[1]")
     .config("spark.ui.enabled", "false")
     .config("spark.driver.host", "127.0.0.1")
@@ -44,17 +43,13 @@ try:
 
         print("\n=== WRITING DELTA TABLE ===")
 
-        df.write.format("delta").mode("overwrite").save(
-            delta_path.as_uri()
-        )
+        df.write.format("delta").mode("overwrite").save(delta_path.as_uri())
 
         print("DELTA WRITE: OK")
 
         print("\n=== READING DELTA TABLE ===")
 
-        result = spark.read.format("delta").load(
-            delta_path.as_uri()
-        )
+        result = spark.read.format("delta").load(delta_path.as_uri())
 
         result.show()
 

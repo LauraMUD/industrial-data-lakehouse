@@ -8,7 +8,6 @@ from pyspark.sql import functions as F
 from src.ingestion.bronze_sensors import ingest
 from src.utils.spark_session import create_spark_session
 
-
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 FIXTURES = BASE_DIR / "tests" / "fixtures" / "sensor_readings"
@@ -37,14 +36,14 @@ def test_initial_ingestion(spark, tmp_path):
     assert count == 6
     assert df.count() == 6
 
-    assert df.filter(
-        (F.col("event_id") == "EVT005")
-        & (F.col("measurement_value") == "ERROR")
-    ).count() == 1
+    assert (
+        df.filter(
+            (F.col("event_id") == "EVT005") & (F.col("measurement_value") == "ERROR")
+        ).count()
+        == 1
+    )
 
-    assert df.filter(
-        F.col("ingestion_timestamp").isNull()
-    ).count() == 0
+    assert df.filter(F.col("ingestion_timestamp").isNull()).count() == 0
 
     assert (target / "_delta_log").exists()
 
@@ -118,13 +117,12 @@ def test_missing_source_is_rejected(spark, tmp_path):
             CONTRACT,
         )
 
+
 def test_invalid_batch_id_is_rejected(spark, tmp_path):
     source = tmp_path / "invalid'batch.csv"
 
     source.write_text(
-        (FIXTURES / "sensors_batch_001.csv").read_text(
-            encoding="utf-8"
-        ),
+        (FIXTURES / "sensors_batch_001.csv").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
 

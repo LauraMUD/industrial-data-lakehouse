@@ -1,10 +1,18 @@
 """Integration tests for the Gold Delta pipeline."""
 
+from pathlib import Path
+
 import pytest
 
+from src.ingestion.bronze_sensors import ingest
 from src.pipelines.run_gold_pipeline import (
     build_gold_tables,
     write_gold_tables,
+)
+from src.transformations.silver_sensors import (
+    apply_quality_rules,
+    load_silver_contract,
+    prepare_silver,
 )
 from src.utils.spark_session import create_spark_session
 
@@ -18,11 +26,40 @@ def spark():
 
 
 @pytest.fixture
-def silver_df(spark):
-    """Use the validated Silver dataset."""
-    return spark.read.format("delta").load(
-        "data/silver/sensor_readings"
+def silver_df(spark, tmp_path):
+    """Build deterministic Silver test data from versioned CSV fixtures."""
+
+    base_dir = Path(__file__).resolve().parents[1]
+    fixtures_dir = base_dir / "tests" / "fixtures" / "sensor_readings"
+    bronze_contract = base_dir / "config" / "contracts" / "sensor_readings.json"
+    bronze_path = tmp_path / "bronze"
+
+    for filename in (
+        "sensors_batch_001.csv",
+        "sensors_batch_002.csv",
+    ):
+        ingest(
+            spark,
+            fixtures_dir / filename,
+            bronze_path,
+            bronze_contract,
+        )
+
+    bronze_df = spark.read.format("delta").load(str(bronze_path))
+
+    assert bronze_df.count() == 10
+
+    validated_df = apply_quality_rules(
+        bronze_df,
+        load_silver_contract(),
     )
+
+    silver_df = prepare_silver(validated_df)
+
+    assert silver_df.count() == 9
+    assert validated_df.filter("size(dq_errors) > 0").count() == 1
+
+    return silver_df
 
 
 EXPECTED_COUNTS = {
@@ -35,9 +72,7 @@ EXPECTED_COUNTS = {
 
 
 def read_table(spark, base_path, name):
-    return spark.read.format("delta").load(
-        str(base_path / name)
-    )
+    return spark.read.format("delta").load(str(base_path / name))
 
 
 def test_gold_pipeline_builds_five_tables(spark, silver_df):
@@ -82,12 +117,7 @@ def test_gold_pipeline_is_idempotent(
     write_gold_tables(first_tables, str(gold_path))
 
     first_results = {
-        name: sorted(
-            tuple(row)
-            for row in read_table(
-                spark, gold_path, name
-            ).collect()
-        )
+        name: sorted(tuple(row) for row in read_table(spark, gold_path, name).collect())
         for name in EXPECTED_COUNTS
     }
 
@@ -95,12 +125,7 @@ def test_gold_pipeline_is_idempotent(
     write_gold_tables(second_tables, str(gold_path))
 
     second_results = {
-        name: sorted(
-            tuple(row)
-            for row in read_table(
-                spark, gold_path, name
-            ).collect()
-        )
+        name: sorted(tuple(row) for row in read_table(spark, gold_path, name).collect())
         for name in EXPECTED_COUNTS
     }
 
@@ -116,6 +141,7 @@ def test_gold_pipeline_rejects_missing_tables(tmp_path):
             {},
             gold_path=str(tmp_path / "gold"),
         )
+
 
 def test_gold_publication_preserves_previous_version_on_failure(
     spark,
@@ -155,7 +181,7 @@ def test_gold_publication_preserves_previous_version_on_failure(
 
     invalid_tables["agg_sensor_minute"] = None
 
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError, match="has no attribute 'write'"):
         publish_gold_tables(
             spark,
             invalid_tables,
@@ -163,10 +189,7 @@ def test_gold_publication_preserves_previous_version_on_failure(
         )
 
     # The previous version must remain active.
-    assert (
-        get_active_gold_version(str(gold_path))
-        == first_version
-    )
+    assert get_active_gold_version(str(gold_path)) == first_version
 
     # Previously published data must remain readable.
     recovered_count = read_active_gold_table(
@@ -176,6 +199,7 @@ def test_gold_publication_preserves_previous_version_on_failure(
     ).count()
 
     assert recovered_count == original_count
+
 
 def test_gold_publication_cleans_failed_version(
     spark,
@@ -200,11 +224,7 @@ def test_gold_publication_cleans_failed_version(
 
     versions_path = gold_path / "versions"
 
-    versions_before = {
-        path.name
-        for path in versions_path.iterdir()
-        if path.is_dir()
-    }
+    versions_before = {path.name for path in versions_path.iterdir() if path.is_dir()}
 
     assert versions_before == {first_version}
 
@@ -212,7 +232,7 @@ def test_gold_publication_cleans_failed_version(
     invalid_tables = dict(gold_tables)
     invalid_tables["agg_sensor_minute"] = None
 
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError, match="has no attribute 'write'"):
         publish_gold_tables(
             spark,
             invalid_tables,
@@ -220,19 +240,13 @@ def test_gold_publication_cleans_failed_version(
         )
 
     # No incomplete version should remain.
-    versions_after = {
-        path.name
-        for path in versions_path.iterdir()
-        if path.is_dir()
-    }
+    versions_after = {path.name for path in versions_path.iterdir() if path.is_dir()}
 
     assert versions_after == {first_version}
 
     # The original version must still be active.
-    assert (
-        get_active_gold_version(str(gold_path))
-        == first_version
-    )
+    assert get_active_gold_version(str(gold_path)) == first_version
+
 
 def test_gold_publication_rejects_validation_failure(
     spark,
@@ -264,9 +278,7 @@ def test_gold_publication_rejects_validation_failure(
     ).count()
 
     # Inject a validation failure after Delta writes.
-    original_validate = (
-        gold_publication.validate_persisted_gold_table
-    )
+    original_validate = gold_publication.validate_persisted_gold_table
 
     validated_tables = []
 
@@ -284,9 +296,7 @@ def test_gold_publication_rejects_validation_failure(
         validated_tables.append(table_name)
 
         if table_name == "agg_sensor_hourly":
-            raise ValueError(
-                "Simulated Gold validation failure"
-            )
+            raise ValueError("Simulated Gold validation failure")
 
     monkeypatch.setattr(
         gold_publication,
@@ -305,30 +315,26 @@ def test_gold_publication_rejects_validation_failure(
         )
 
     # Confirm the failure happened at the last validation.
-    assert validated_tables == list(
-        gold_publication.GOLD_TABLE_NAMES
-    )
+    assert validated_tables == list(gold_publication.GOLD_TABLE_NAMES)
 
     # Previous version remains active.
-    assert (
-        get_active_gold_version(str(gold_path))
-        == first_version
-    )
+    assert get_active_gold_version(str(gold_path)) == first_version
 
     # Previously published data remains readable.
-    assert read_active_gold_table(
-        spark,
-        "fact_sensor_readings",
-        gold_path=str(gold_path),
-    ).count() == original_count
+    assert (
+        read_active_gold_table(
+            spark,
+            "fact_sensor_readings",
+            gold_path=str(gold_path),
+        ).count()
+        == original_count
+    )
 
     # Failed version was removed.
     versions_path = gold_path / "versions"
 
     remaining_versions = {
-        path.name
-        for path in versions_path.iterdir()
-        if path.is_dir()
+        path.name for path in versions_path.iterdir() if path.is_dir()
     }
 
     assert remaining_versions == {first_version}

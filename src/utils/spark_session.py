@@ -14,8 +14,7 @@ def create_spark_session(
     os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
 
     builder = (
-        SparkSession.builder
-        .appName(app_name)
+        SparkSession.builder.appName(app_name)
         .master("local[2]")
         .config("spark.ui.enabled", "false")
         .config("spark.sql.shuffle.partitions", "2")

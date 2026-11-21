@@ -1,11 +1,11 @@
-
 """Unit tests for the isolated pipeline stage runner."""
 
 import subprocess
 import sys
-import pytest
-from pipeline import runner
 
+import pytest
+
+from pipeline import runner
 from pipeline.runner import (
     PROJECT_ROOT,
     StageExecutionError,
@@ -97,8 +97,6 @@ def test_run_stage_process_start_error(monkeypatch):
         )
 
 
-
-
 def test_run_stage_timeout(monkeypatch):
     """A timed-out subprocess raises StageTimeoutError."""
 
@@ -134,67 +132,7 @@ def test_run_stage_rejects_invalid_timeout(monkeypatch):
     """Invalid timeouts are rejected before execution."""
 
     def unexpected_run(*args, **kwargs):
-        pytest.fail(
-            "subprocess.run must not be called"
-        )
-
-    monkeypatch.setattr(
-        runner.subprocess,
-        "run",
-        unexpected_run,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="timeout_seconds must be greater than zero",
-    ):
-        runner.run_stage(
-            stage="bronze",
-            module="src.ingestion.bronze_sensors",
-            timeout_seconds=0,
-        )
-
-
-
-
-def test_run_stage_timeout(monkeypatch):
-    """A timed-out subprocess raises StageTimeoutError."""
-
-    def fake_run(*args, **kwargs):
-        raise subprocess.TimeoutExpired(
-            cmd=args[0],
-            timeout=kwargs["timeout"],
-        )
-
-    monkeypatch.setattr(
-        runner.subprocess,
-        "run",
-        fake_run,
-    )
-
-    with pytest.raises(
-        runner.StageTimeoutError,
-        match="Stage bronze exceeded 5 seconds",
-    ) as exc_info:
-        runner.run_stage(
-            stage="bronze",
-            module="src.ingestion.bronze_sensors",
-            timeout_seconds=5,
-        )
-
-    assert isinstance(
-        exc_info.value.__cause__,
-        subprocess.TimeoutExpired,
-    )
-
-
-def test_run_stage_rejects_invalid_timeout(monkeypatch):
-    """Invalid timeouts are rejected before execution."""
-
-    def unexpected_run(*args, **kwargs):
-        pytest.fail(
-            "subprocess.run must not be called"
-        )
+        pytest.fail("subprocess.run must not be called")
 
     monkeypatch.setattr(
         runner.subprocess,

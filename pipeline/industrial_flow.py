@@ -1,4 +1,3 @@
-
 """Prefect orchestration for the industrial Data Lakehouse."""
 
 from pathlib import Path
@@ -6,7 +5,6 @@ from pathlib import Path
 from prefect import flow, get_run_logger, task
 
 from pipeline.runner import StageResult, run_stage
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,8 +23,10 @@ def bronze_task(
         stage="bronze",
         module="src.ingestion.bronze_sensors",
         args=[
-            "--source", source,
-            "--target", bronze_path,
+            "--source",
+            source,
+            "--target",
+            bronze_path,
         ],
     )
 
@@ -53,9 +53,12 @@ def silver_task(
         stage="silver",
         module="src.pipelines.run_silver",
         args=[
-            "--bronze-path", bronze_path,
-            "--silver-path", silver_path,
-            "--quarantine-path", quarantine_path,
+            "--bronze-path",
+            bronze_path,
+            "--silver-path",
+            silver_path,
+            "--quarantine-path",
+            quarantine_path,
         ],
     )
 
@@ -81,8 +84,10 @@ def gold_task(
         stage="gold",
         module="src.pipelines.run_gold_pipeline",
         args=[
-            "--silver-path", silver_path,
-            "--gold-path", gold_path,
+            "--silver-path",
+            silver_path,
+            "--gold-path",
+            gold_path,
         ],
     )
 
@@ -127,9 +132,7 @@ def industrial_lakehouse_flow(
         gold_path=gold_path,
     )
 
-    logger.info(
-        "Industrial lakehouse pipeline completed successfully"
-    )
+    logger.info("Industrial lakehouse pipeline completed successfully")
 
     return {
         "bronze": bronze_result,

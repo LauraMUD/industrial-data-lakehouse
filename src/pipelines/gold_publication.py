@@ -2,12 +2,11 @@
 
 import json
 import os
+import shutil
 from pathlib import Path
 from uuid import uuid4
-import shutil
 
 from pyspark.sql import DataFrame, SparkSession
-
 
 GOLD_TABLE_NAMES = (
     "dim_equipment",
@@ -28,9 +27,7 @@ def get_active_gold_version(
     if not manifest_path.exists():
         return None
 
-    manifest = json.loads(
-        manifest_path.read_text(encoding="utf-8")
-    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     return manifest["run_id"]
 
@@ -53,19 +50,15 @@ def validate_persisted_gold_table(
         )
 
     expected_schema = [
-        (field.name, field.dataType)
-        for field in expected_df.schema.fields
+        (field.name, field.dataType) for field in expected_df.schema.fields
     ]
 
     persisted_schema = [
-        (field.name, field.dataType)
-        for field in persisted_df.schema.fields
+        (field.name, field.dataType) for field in persisted_df.schema.fields
     ]
 
     if expected_schema != persisted_schema:
-        raise ValueError(
-            f"Gold publication schema mismatch: {table_name}"
-        )
+        raise ValueError(f"Gold publication schema mismatch: {table_name}")
 
 
 def publish_gold_tables(
@@ -78,9 +71,7 @@ def publish_gold_tables(
     missing = set(GOLD_TABLE_NAMES) - set(gold_tables)
 
     if missing:
-        raise ValueError(
-            f"Missing Gold tables: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing Gold tables: {sorted(missing)}")
 
     base_path = Path(gold_path)
     versions_path = base_path / "versions"
@@ -97,8 +88,7 @@ def publish_gold_tables(
 
             (
                 gold_tables[table_name]
-                .write
-                .format("delta")
+                .write.format("delta")
                 .mode("errorifexists")
                 .save(str(target))
             )
@@ -107,9 +97,7 @@ def publish_gold_tables(
         for table_name in GOLD_TABLE_NAMES:
             target = version_path / table_name
 
-            persisted_df = spark.read.format("delta").load(
-                str(target)
-            )
+            persisted_df = spark.read.format("delta").load(str(target))
 
             validate_persisted_gold_table(
                 gold_tables[table_name],
@@ -120,9 +108,7 @@ def publish_gold_tables(
         # Publish only after successful validation.
         manifest_path = base_path / "current.json"
 
-        temporary_manifest = base_path / (
-            f".current.{run_id}.tmp"
-        )
+        temporary_manifest = base_path / (f".current.{run_id}.tmp")
 
         manifest = {
             "run_id": run_id,
@@ -159,24 +145,13 @@ def read_active_gold_table(
     """Read a table from the currently published Gold version."""
 
     if table_name not in GOLD_TABLE_NAMES:
-        raise ValueError(
-            f"Unknown Gold table: {table_name}"
-        )
+        raise ValueError(f"Unknown Gold table: {table_name}")
 
     run_id = get_active_gold_version(gold_path)
 
     if run_id is None:
-        raise ValueError(
-            "No published Gold version exists"
-        )
+        raise ValueError("No published Gold version exists")
 
-    table_path = (
-        Path(gold_path)
-        / "versions"
-        / run_id
-        / table_name
-    )
+    table_path = Path(gold_path) / "versions" / run_id / table_name
 
-    return spark.read.format("delta").load(
-        str(table_path)
-    )
+    return spark.read.format("delta").load(str(table_path))

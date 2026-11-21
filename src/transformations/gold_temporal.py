@@ -3,7 +3,6 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-
 REQUIRED_COLUMNS = [
     "plant_id",
     "equipment_id",
@@ -30,18 +29,12 @@ def build_temporal_aggregation(
     """Aggregate industrial sensor readings by minute or hour."""
 
     if granularity not in ("minute", "hour"):
-        raise ValueError(
-            f"Unsupported temporal granularity: {granularity}"
-        )
+        raise ValueError(f"Unsupported temporal granularity: {granularity}")
 
-    missing_columns = set(REQUIRED_COLUMNS) - set(
-        fact_df.columns
-    )
+    missing_columns = set(REQUIRED_COLUMNS) - set(fact_df.columns)
 
     if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {sorted(missing_columns)}"
-        )
+        raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
 
     expected_types = {
         "event_timestamp": "timestamp",
@@ -49,9 +42,7 @@ def build_temporal_aggregation(
     }
 
     for column, expected_type in expected_types.items():
-        actual_type = (
-            fact_df.schema[column].dataType.simpleString()
-        )
+        actual_type = fact_df.schema[column].dataType.simpleString()
 
         if actual_type != expected_type:
             raise ValueError(
@@ -65,26 +56,18 @@ def build_temporal_aggregation(
         condition = F.col(column).isNull()
 
         if column in DIMENSION_COLUMNS:
-            condition = condition | (
-                F.trim(F.col(column)) == ""
-            )
+            condition = condition | (F.trim(F.col(column)) == "")
 
         invalid_condition = invalid_condition | condition
 
-    invalid_numeric = (
-        F.isnan(F.col("measurement_value"))
-        | (
-            F.abs(F.col("measurement_value"))
-            == F.lit(float("inf"))
-        )
+    invalid_numeric = F.isnan(F.col("measurement_value")) | (
+        F.abs(F.col("measurement_value")) == F.lit(float("inf"))
     )
 
     invalid_condition = invalid_condition | invalid_numeric
 
     if fact_df.filter(invalid_condition).limit(1).count() > 0:
-        raise ValueError(
-            "Fact contains invalid aggregation attributes"
-        )
+        raise ValueError("Fact contains invalid aggregation attributes")
 
     timestamp_column = f"{granularity}_start_utc"
 
@@ -96,19 +79,13 @@ def build_temporal_aggregation(
         ),
     )
 
-    return (
-        temporal_df
-        .groupBy(
-            *DIMENSION_COLUMNS,
-            timestamp_column,
-        )
-        .agg(
-            F.count("*").alias("reading_count"),
-            F.avg("measurement_value").alias("avg_value"),
-            F.min("measurement_value").alias("min_value"),
-            F.max("measurement_value").alias("max_value"),
-            F.stddev_pop("measurement_value").alias(
-                "stddev_value"
-            ),
-        )
+    return temporal_df.groupBy(
+        *DIMENSION_COLUMNS,
+        timestamp_column,
+    ).agg(
+        F.count("*").alias("reading_count"),
+        F.avg("measurement_value").alias("avg_value"),
+        F.min("measurement_value").alias("min_value"),
+        F.max("measurement_value").alias("max_value"),
+        F.stddev_pop("measurement_value").alias("stddev_value"),
     )

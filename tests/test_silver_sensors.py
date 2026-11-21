@@ -1,33 +1,29 @@
 """Tests for Silver data quality transformations."""
 
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-import pytest
-from src.utils.spark_session import create_spark_session
-
 from unittest.mock import patch
 
-import src.transformations.silver_sensors as silver_module
+import pytest
+from pyspark.sql import functions as F
 
+import src.transformations.silver_sensors as silver_module
 from src.transformations.silver_sensors import (
-    load_silver_contract,
-    validate_required_fields,
-    validate_numeric_measurement,
-    validate_event_timestamp,
-    validate_measurement_type,
-    validate_measurement_unit,
-    validate_duplicate_events,
-    validate_measurement_range,
     apply_quality_rules,
-    split_quality_results,
-    prepare_silver,
+    load_silver_contract,
     prepare_quarantine,
-    write_delta_batch,
+    prepare_silver,
     process_bronze_batch,
     run_silver_pipeline,
+    split_quality_results,
+    validate_duplicate_events,
+    validate_event_timestamp,
+    validate_measurement_range,
+    validate_measurement_type,
+    validate_measurement_unit,
+    validate_numeric_measurement,
+    validate_required_fields,
+    write_delta_batch,
 )
-
-
+from src.utils.spark_session import create_spark_session
 
 
 def test_silver_contract_loads():
@@ -59,10 +55,7 @@ def test_validate_required_fields():
             ["event_id", "plant_id"],
         )
 
-        rows = {
-            row["event_id"]: row["dq_errors"]
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row["dq_errors"] for row in result.collect()}
 
         assert rows["EVT001"] == []
         assert rows["EVT002"] == ["DQ001_NULL_REQUIRED"]
@@ -70,6 +63,7 @@ def test_validate_required_fields():
 
     finally:
         spark.stop()
+
 
 def test_validate_numeric_measurement():
     spark = create_spark_session("SilverQualityTest")
@@ -84,46 +78,33 @@ def test_validate_numeric_measurement():
             ("EVT008", "Infinity", []),
         ]
 
-        schema = (
-            "event_id STRING, "
-            "measurement_value STRING, "
-            "dq_errors ARRAY<STRING>"
-        )
+        schema = "event_id STRING, measurement_value STRING, dq_errors ARRAY<STRING>"
 
         df = spark.createDataFrame(data, schema=schema)
 
         result = validate_numeric_measurement(df)
 
-        rows = {
-            row["event_id"]: row
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row for row in result.collect()}
 
         assert rows["EVT001"]["measurement_value_numeric"] == 68.5
         assert rows["EVT001"]["dq_errors"] == []
 
         assert rows["EVT005"]["measurement_value_numeric"] is None
-        assert rows["EVT005"]["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rows["EVT005"]["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
         assert rows["EVT006"]["dq_errors"] == [
             "DQ001_NULL_REQUIRED",
             "DQ003_INVALID_NUMERIC",
         ]
 
-        assert rows["EVT007"]["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rows["EVT007"]["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
-        assert rows["EVT008"]["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rows["EVT008"]["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
     finally:
         spark.stop()
 
-    
+
 def test_validate_event_timestamp():
     spark = create_spark_session("SilverQualityTest")
     spark.conf.set("spark.sql.session.timeZone", "UTC")
@@ -137,29 +118,20 @@ def test_validate_event_timestamp():
             ("EVT005", "2026-11-19T08:00:00", []),
         ]
 
-        schema = (
-            "event_id STRING, "
-            "event_timestamp STRING, "
-            "dq_errors ARRAY<STRING>"
-        )
+        schema = "event_id STRING, event_timestamp STRING, dq_errors ARRAY<STRING>"
 
         df = spark.createDataFrame(data, schema=schema)
 
         result = validate_event_timestamp(df)
 
-        rows = {
-            row["event_id"]: row
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row for row in result.collect()}
 
         assert rows["EVT001"]["event_timestamp_utc"] is not None
         assert rows["EVT001"]["dq_errors"] == []
 
         for event_id in ["EVT002", "EVT004", "EVT005"]:
             assert rows[event_id]["event_timestamp_utc"] is None
-            assert rows[event_id]["dq_errors"] == [
-                "DQ002_INVALID_TIMESTAMP"
-            ]
+            assert rows[event_id]["dq_errors"] == ["DQ002_INVALID_TIMESTAMP"]
 
         assert rows["EVT003"]["dq_errors"] == [
             "DQ001_NULL_REQUIRED",
@@ -168,6 +140,7 @@ def test_validate_event_timestamp():
 
     finally:
         spark.stop()
+
 
 def test_validate_measurement_type_and_unit():
     spark = create_spark_session("SilverQualityTest")
@@ -197,29 +170,21 @@ def test_validate_measurement_type_and_unit():
         result = validate_measurement_type(df, contract)
         result = validate_measurement_unit(result, contract)
 
-        rows = {
-            row["event_id"]: row["dq_errors"]
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row["dq_errors"] for row in result.collect()}
 
         assert rows["EVT001"] == []
         assert rows["EVT002"] == []
         assert rows["EVT003"] == []
 
-        assert rows["EVT004"] == [
-            "DQ005_INVALID_UNIT"
-        ]
+        assert rows["EVT004"] == ["DQ005_INVALID_UNIT"]
 
-        assert rows["EVT005"] == [
-            "DQ004_UNKNOWN_MEASUREMENT_TYPE"
-        ]
+        assert rows["EVT005"] == ["DQ004_UNKNOWN_MEASUREMENT_TYPE"]
 
-        assert rows["EVT006"] == [
-            "DQ005_INVALID_UNIT"
-        ]
+        assert rows["EVT006"] == ["DQ005_INVALID_UNIT"]
 
     finally:
         spark.stop()
+
 
 def test_validate_duplicate_events():
     spark = create_spark_session("SilverQualityTest")
@@ -234,11 +199,7 @@ def test_validate_duplicate_events():
             ("EVT003", "71.0", []),
         ]
 
-        schema = (
-            "event_id STRING, "
-            "measurement_value STRING, "
-            "dq_errors ARRAY<STRING>"
-        )
+        schema = "event_id STRING, measurement_value STRING, dq_errors ARRAY<STRING>"
 
         df = spark.createDataFrame(data, schema=schema)
 
@@ -246,14 +207,10 @@ def test_validate_duplicate_events():
 
         rows = result.collect()
 
-        valid_rows = [
-            row for row in rows
-            if not row["dq_errors"]
-        ]
+        valid_rows = [row for row in rows if not row["dq_errors"]]
 
         duplicate_rows = [
-            row for row in rows
-            if "DQ006_DUPLICATE_EVENT_ID" in row["dq_errors"]
+            row for row in rows if "DQ006_DUPLICATE_EVENT_ID" in row["dq_errors"]
         ]
 
         assert len(rows) == 5
@@ -261,19 +218,13 @@ def test_validate_duplicate_events():
         assert len(duplicate_rows) == 2
 
         # The valid EVT001 takes priority.
-        valid_evt001 = [
-            row for row in valid_rows
-            if row["event_id"] == "EVT001"
-        ]
+        valid_evt001 = [row for row in valid_rows if row["event_id"] == "EVT001"]
 
         assert len(valid_evt001) == 1
         assert valid_evt001[0]["measurement_value"] == "68.5"
 
         # The invalid duplicate retains both error codes.
-        invalid_evt001 = [
-            row for row in duplicate_rows
-            if row["event_id"] == "EVT001"
-        ]
+        invalid_evt001 = [row for row in duplicate_rows if row["event_id"] == "EVT001"]
 
         assert invalid_evt001[0]["dq_errors"] == [
             "DQ003_INVALID_NUMERIC",
@@ -281,16 +232,14 @@ def test_validate_duplicate_events():
         ]
 
         # EVT003 retains one deterministic candidate.
-        valid_evt003 = [
-            row for row in valid_rows
-            if row["event_id"] == "EVT003"
-        ]
+        valid_evt003 = [row for row in valid_rows if row["event_id"] == "EVT003"]
 
         assert len(valid_evt003) == 1
         assert valid_evt003[0]["measurement_value"] == "70.0"
 
     finally:
         spark.stop()
+
 
 def test_validate_measurement_range():
     spark = create_spark_session("SilverQualityTest")
@@ -329,10 +278,7 @@ def test_validate_measurement_range():
             contract,
         )
 
-        rows = {
-            row["event_id"]: row["dq_errors"]
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row["dq_errors"] for row in result.collect()}
 
         # Valid measurements
         assert rows["EVT001"] == []
@@ -342,17 +288,14 @@ def test_validate_measurement_range():
 
         # Out-of-range measurements
         for event_id in ["EVT002", "EVT003", "EVT005"]:
-            assert rows[event_id] == [
-                "DQ007_OUT_OF_RANGE"
-            ]
+            assert rows[event_id] == ["DQ007_OUT_OF_RANGE"]
 
         # Preserve previous numeric errors
-        assert rows["EVT006"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rows["EVT006"] == ["DQ003_INVALID_NUMERIC"]
 
     finally:
         spark.stop()
+
 
 def test_apply_quality_rules_integration():
     spark = create_spark_session("SilverQualityTest")
@@ -391,30 +334,20 @@ def test_apply_quality_rules_integration():
 
         result = apply_quality_rules(df, contract)
 
-        rows = {
-            row["event_id"]: row
-            for row in result.collect()
-        }
+        rows = {row["event_id"]: row for row in result.collect()}
 
         assert len(rows) == 2
 
         assert rows["EVT001"]["dq_errors"] == []
-        assert (
-            rows["EVT001"]["measurement_value_numeric"]
-            == 68.5
-        )
+        assert rows["EVT001"]["measurement_value_numeric"] == 68.5
 
-        assert rows["EVT005"]["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rows["EVT005"]["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
-        assert (
-            rows["EVT005"]["measurement_value_numeric"]
-            is None
-        )
+        assert rows["EVT005"]["measurement_value_numeric"] is None
 
     finally:
         spark.stop()
+
 
 def test_split_quality_results():
     spark = create_spark_session("SilverQualityTest")
@@ -428,10 +361,7 @@ def test_split_quality_results():
             ("EVT007", []),
         ]
 
-        schema = (
-            "event_id STRING, "
-            "dq_errors ARRAY<STRING>"
-        )
+        schema = "event_id STRING, dq_errors ARRAY<STRING>"
 
         df = spark.createDataFrame(data, schema=schema)
 
@@ -440,20 +370,16 @@ def test_split_quality_results():
         assert valid_df.count() == 3
         assert rejected_df.count() == 1
 
-        assert (
-            valid_df.count() + rejected_df.count()
-            == df.count()
-        )
+        assert valid_df.count() + rejected_df.count() == df.count()
 
         rejected = rejected_df.collect()
 
         assert rejected[0]["event_id"] == "EVT005"
-        assert rejected[0]["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert rejected[0]["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
     finally:
         spark.stop()
+
 
 def test_prepare_silver():
     from datetime import datetime
@@ -523,22 +449,17 @@ def test_prepare_silver():
         assert "measurement_value_numeric" not in silver_df.columns
         assert "event_timestamp_utc" not in silver_df.columns
 
-        assert (
-            silver_df.schema["measurement_value"]
-            .dataType.simpleString()
-            == "double"
-        )
+        assert silver_df.schema["measurement_value"].dataType.simpleString() == "double"
 
         assert (
-            silver_df.schema["event_timestamp"]
-            .dataType.simpleString()
-            == "timestamp"
+            silver_df.schema["event_timestamp"].dataType.simpleString() == "timestamp"
         )
 
         assert len(silver_df.columns) == 11
 
     finally:
         spark.stop()
+
 
 def test_prepare_quarantine():
     from datetime import datetime
@@ -603,24 +524,17 @@ def test_prepare_quarantine():
 
         assert row["event_id"] == "EVT005"
         assert row["measurement_value"] == "ERROR"
-        assert row["event_timestamp"] == (
-            "2026-11-19T07:04:00Z"
-        )
+        assert row["event_timestamp"] == ("2026-11-19T07:04:00Z")
 
-        assert row["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert row["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
         assert row["batch_id"] == "sensors_batch_001"
-        assert row["source_file"] == (
-            "sensors_batch_001.csv"
-        )
+        assert row["source_file"] == ("sensors_batch_001.csv")
 
         assert row["quarantine_timestamp"] is not None
 
         assert (
-            quarantine_df.schema["measurement_value"]
-            .dataType.simpleString()
+            quarantine_df.schema["measurement_value"].dataType.simpleString()
             == "string"
         )
 
@@ -629,21 +543,16 @@ def test_prepare_quarantine():
     finally:
         spark.stop()
 
+
 def test_write_delta_batch_idempotent(tmp_path):
     from src.utils.spark_session import create_spark_session
 
-    spark = create_spark_session(
-        "SilverDeltaIdempotencyTest"
-    )
+    spark = create_spark_session("SilverDeltaIdempotencyTest")
 
     try:
         target = tmp_path / "silver_delta"
 
-        schema = (
-            "event_id STRING, "
-            "batch_id STRING, "
-            "measurement_value DOUBLE"
-        )
+        schema = "event_id STRING, batch_id STRING, measurement_value DOUBLE"
 
         first_df = spark.createDataFrame(
             [
@@ -653,19 +562,11 @@ def test_write_delta_batch_idempotent(tmp_path):
             schema=schema,
         )
 
-        write_delta_batch(
-            spark, first_df, target, "batch_001"
-        )
+        write_delta_batch(spark, first_df, target, "batch_001")
 
-        write_delta_batch(
-            spark, first_df, target, "batch_001"
-        )
+        write_delta_batch(spark, first_df, target, "batch_001")
 
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         assert result.count() == 2
 
@@ -676,55 +577,34 @@ def test_write_delta_batch_idempotent(tmp_path):
             schema=schema,
         )
 
-        write_delta_batch(
-            spark, second_df, target, "batch_002"
-        )
+        write_delta_batch(spark, second_df, target, "batch_002")
 
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         assert result.count() == 3
 
         # Reprocessing batch_001 must not duplicate records.
-        write_delta_batch(
-            spark, first_df, target, "batch_001"
-        )
+        write_delta_batch(spark, first_df, target, "batch_001")
 
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         assert result.count() == 3
 
-        assert (
-            result.filter(F.col("batch_id") == "batch_001")
-            .count()
-            == 2
-        )
+        assert result.filter(F.col("batch_id") == "batch_001").count() == 2
 
     finally:
         spark.stop()
 
+
 def test_write_delta_batch_empty_reprocessing(tmp_path):
     from src.utils.spark_session import create_spark_session
 
-    spark = create_spark_session(
-        "SilverEmptyBatchReprocessingTest"
-    )
+    spark = create_spark_session("SilverEmptyBatchReprocessingTest")
 
     try:
         target = tmp_path / "quarantine_delta"
 
-        schema = (
-            "event_id STRING, "
-            "batch_id STRING, "
-            "measurement_value STRING"
-        )
+        schema = "event_id STRING, batch_id STRING, measurement_value STRING"
 
         initial_df = spark.createDataFrame(
             [
@@ -747,11 +627,7 @@ def test_write_delta_batch_empty_reprocessing(tmp_path):
             target,
             "batch_002",
         )
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         assert result.count() == 2
 
@@ -768,11 +644,7 @@ def test_write_delta_batch_empty_reprocessing(tmp_path):
             "batch_001",
         )
 
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         assert result.count() == 1
 
@@ -784,21 +656,16 @@ def test_write_delta_batch_empty_reprocessing(tmp_path):
     finally:
         spark.stop()
 
+
 def test_write_delta_batch_replaces_modified_records(tmp_path):
     from src.utils.spark_session import create_spark_session
 
-    spark = create_spark_session(
-        "SilverModifiedBatchTest"
-    )
+    spark = create_spark_session("SilverModifiedBatchTest")
 
     try:
         target = tmp_path / "silver_modified_delta"
 
-        schema = (
-            "event_id STRING, "
-            "batch_id STRING, "
-            "measurement_value DOUBLE"
-        )
+        schema = "event_id STRING, batch_id STRING, measurement_value DOUBLE"
 
         initial_df = spark.createDataFrame(
             [
@@ -832,19 +699,12 @@ def test_write_delta_batch_replaces_modified_records(tmp_path):
             schema=schema,
         )
 
-        write_delta_batch(
-            spark, corrected_df, target, "batch_001"
-        )
+        write_delta_batch(spark, corrected_df, target, "batch_001")
 
-        result = (
-            spark.read
-            .format("delta")
-            .load(str(target))
-        )
+        result = spark.read.format("delta").load(str(target))
 
         records = {
-            row["event_id"]: row["measurement_value"]
-            for row in result.collect()
+            row["event_id"]: row["measurement_value"] for row in result.collect()
         }
 
         assert records == {
@@ -858,21 +718,16 @@ def test_write_delta_batch_replaces_modified_records(tmp_path):
     finally:
         spark.stop()
 
+
 def test_write_delta_batch_rejects_mixed_batches(tmp_path):
     from src.utils.spark_session import create_spark_session
 
-    spark = create_spark_session(
-        "SilverMixedBatchValidationTest"
-    )
+    spark = create_spark_session("SilverMixedBatchValidationTest")
 
     try:
         target = tmp_path / "mixed_batch_delta"
 
-        schema = (
-            "event_id STRING, "
-            "batch_id STRING, "
-            "measurement_value DOUBLE"
-        )
+        schema = "event_id STRING, batch_id STRING, measurement_value DOUBLE"
 
         mixed_df = spark.createDataFrame(
             [
@@ -903,10 +758,9 @@ def test_write_delta_batch_rejects_mixed_batches(tmp_path):
     finally:
         spark.stop()
 
+
 def test_process_bronze_batch_integration(tmp_path):
-    spark = create_spark_session(
-        "SilverBatchIntegrationTest"
-    )
+    spark = create_spark_session("SilverBatchIntegrationTest")
     spark.conf.set("spark.sql.session.timeZone", "UTC")
 
     try:
@@ -930,17 +784,29 @@ def test_process_bronze_batch_integration(tmp_path):
 
         rows = [
             (
-                "EVT001", "PLANT_01", "MILL_01", "TEMP_01",
+                "EVT001",
+                "PLANT_01",
+                "MILL_01",
+                "TEMP_01",
                 "2026-11-19T07:00:00Z",
-                "temperature", "68.5", "C",
-                "batch_001", "batch_001.csv",
+                "temperature",
+                "68.5",
+                "C",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
             (
-                "EVT005", "PLANT_01", "MILL_01", "VIB_01",
+                "EVT005",
+                "PLANT_01",
+                "MILL_01",
+                "VIB_01",
                 "2026-11-19T07:04:00Z",
-                "vibration", "ERROR", "mm/s",
-                "batch_001", "batch_001.csv",
+                "vibration",
+                "ERROR",
+                "mm/s",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
         ]
@@ -950,19 +816,12 @@ def test_process_bronze_batch_integration(tmp_path):
             schema=schema,
         )
 
-        (
-            bronze_df.write
-            .format("delta")
-            .mode("overwrite")
-            .save(str(bronze_path))
-        )
+        (bronze_df.write.format("delta").mode("overwrite").save(str(bronze_path)))
 
-        silver_df, quarantine_df, metrics = (
-            process_bronze_batch(
-                spark,
-                bronze_path,
-                "batch_001",
-            )
+        silver_df, quarantine_df, metrics = process_bronze_batch(
+            spark,
+            bronze_path,
+            "batch_001",
         )
 
         assert metrics == {
@@ -980,19 +839,16 @@ def test_process_bronze_batch_integration(tmp_path):
 
         assert quarantine_row["event_id"] == "EVT005"
         assert quarantine_row["measurement_value"] == "ERROR"
-        assert quarantine_row["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert quarantine_row["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
     finally:
         spark.stop()
 
+
 def test_run_silver_pipeline_integration(tmp_path):
     from datetime import datetime
 
-    spark = create_spark_session(
-        "SilverPipelineIntegrationTest"
-    )
+    spark = create_spark_session("SilverPipelineIntegrationTest")
     spark.conf.set("spark.sql.session.timeZone", "UTC")
 
     try:
@@ -1016,17 +872,29 @@ def test_run_silver_pipeline_integration(tmp_path):
 
         rows = [
             (
-                "EVT001", "PLANT_01", "MILL_01", "TEMP_01",
+                "EVT001",
+                "PLANT_01",
+                "MILL_01",
+                "TEMP_01",
                 "2026-11-19T07:00:00Z",
-                "temperature", "68.5", "C",
-                "batch_001", "batch_001.csv",
+                "temperature",
+                "68.5",
+                "C",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
             (
-                "EVT005", "PLANT_01", "MILL_01", "VIB_01",
+                "EVT005",
+                "PLANT_01",
+                "MILL_01",
+                "VIB_01",
                 "2026-11-19T07:04:00Z",
-                "vibration", "ERROR", "mm/s",
-                "batch_001", "batch_001.csv",
+                "vibration",
+                "ERROR",
+                "mm/s",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
         ]
@@ -1036,12 +904,7 @@ def test_run_silver_pipeline_integration(tmp_path):
             schema=schema,
         )
 
-        (
-            bronze_df.write
-            .format("delta")
-            .mode("overwrite")
-            .save(str(bronze_path))
-        )
+        (bronze_df.write.format("delta").mode("overwrite").save(str(bronze_path)))
 
         metrics = run_silver_pipeline(
             spark,
@@ -1057,22 +920,16 @@ def test_run_silver_pipeline_integration(tmp_path):
         assert metrics["silver_written"] == 1
         assert metrics["quarantine_written"] == 1
 
-        silver_df = spark.read.format("delta").load(
-            str(silver_path)
-        )
+        silver_df = spark.read.format("delta").load(str(silver_path))
 
-        quarantine_df = spark.read.format("delta").load(
-            str(quarantine_path)
-        )
+        quarantine_df = spark.read.format("delta").load(str(quarantine_path))
 
         assert silver_df.first()["event_id"] == "EVT001"
         assert silver_df.first()["measurement_value"] == 68.5
 
         assert quarantine_df.first()["event_id"] == "EVT005"
         assert quarantine_df.first()["measurement_value"] == "ERROR"
-        assert quarantine_df.first()["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert quarantine_df.first()["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
         # Reprocessing must not duplicate records.
         run_silver_pipeline(
@@ -1083,25 +940,20 @@ def test_run_silver_pipeline_integration(tmp_path):
             "batch_001",
         )
 
-        assert spark.read.format("delta").load(
-            str(silver_path)
-        ).count() == 1
+        assert spark.read.format("delta").load(str(silver_path)).count() == 1
 
-        assert spark.read.format("delta").load(
-            str(quarantine_path)
-        ).count() == 1
+        assert spark.read.format("delta").load(str(quarantine_path)).count() == 1
 
     finally:
         spark.stop()
+
 
 def test_run_silver_pipeline_recovers_after_partial_failure(
     tmp_path,
 ):
     from datetime import datetime
 
-    spark = create_spark_session(
-        "SilverPartialFailureRecoveryTest"
-    )
+    spark = create_spark_session("SilverPartialFailureRecoveryTest")
     spark.conf.set("spark.sql.session.timeZone", "UTC")
 
     try:
@@ -1125,17 +977,29 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
 
         rows = [
             (
-                "EVT001", "PLANT_01", "MILL_01", "TEMP_01",
+                "EVT001",
+                "PLANT_01",
+                "MILL_01",
+                "TEMP_01",
                 "2026-11-19T07:00:00Z",
-                "temperature", "68.5", "C",
-                "batch_001", "batch_001.csv",
+                "temperature",
+                "68.5",
+                "C",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
             (
-                "EVT005", "PLANT_01", "MILL_01", "VIB_01",
+                "EVT005",
+                "PLANT_01",
+                "MILL_01",
+                "VIB_01",
                 "2026-11-19T07:04:00Z",
-                "vibration", "ERROR", "mm/s",
-                "batch_001", "batch_001.csv",
+                "vibration",
+                "ERROR",
+                "mm/s",
+                "batch_001",
+                "batch_001.csv",
                 datetime(2026, 11, 19, 9, 0),
             ),
         ]
@@ -1145,12 +1009,7 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
             schema=schema,
         )
 
-        (
-            bronze_df.write
-            .format("delta")
-            .mode("overwrite")
-            .save(str(bronze_path))
-        )
+        (bronze_df.write.format("delta").mode("overwrite").save(str(bronze_path)))
 
         original_write = silver_module.write_delta_batch
 
@@ -1161,9 +1020,7 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
             batch_id,
         ):
             if str(target_path) == str(quarantine_path):
-                raise RuntimeError(
-                    "Simulated Quarantine write failure"
-                )
+                raise RuntimeError("Simulated Quarantine write failure")
 
             return original_write(
                 spark_session,
@@ -1173,29 +1030,27 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
             )
 
         # First attempt: Silver succeeds, Quarantine fails.
-        with patch.object(
-            silver_module,
-            "write_delta_batch",
-            side_effect=fail_quarantine_write,
-        ):
-            with pytest.raises(
+        with (
+            patch.object(
+                silver_module,
+                "write_delta_batch",
+                side_effect=fail_quarantine_write,
+            ),
+            pytest.raises(
                 RuntimeError,
                 match="Simulated Quarantine write failure",
-            ):
-                run_silver_pipeline(
-                    spark,
-                    bronze_path,
-                    silver_path,
-                    quarantine_path,
-                    "batch_001",
-                )
+            ),
+        ):
+            run_silver_pipeline(
+                spark,
+                bronze_path,
+                silver_path,
+                quarantine_path,
+                "batch_001",
+            )
 
         # Silver was written before the failure.
-        silver_df = (
-            spark.read
-            .format("delta")
-            .load(str(silver_path))
-        )
+        silver_df = spark.read.format("delta").load(str(silver_path))
 
         assert silver_df.count() == 1
         assert silver_df.first()["event_id"] == "EVT001"
@@ -1212,17 +1067,9 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
         assert metrics["silver_written"] == 1
         assert metrics["quarantine_written"] == 1
 
-        silver_final = (
-            spark.read
-            .format("delta")
-            .load(str(silver_path))
-        )
+        silver_final = spark.read.format("delta").load(str(silver_path))
 
-        quarantine_final = (
-            spark.read
-            .format("delta")
-            .load(str(quarantine_path))
-        )
+        quarantine_final = spark.read.format("delta").load(str(quarantine_path))
 
         assert silver_final.count() == 1
         assert quarantine_final.count() == 1
@@ -1233,9 +1080,7 @@ def test_run_silver_pipeline_recovers_after_partial_failure(
 
         assert quarantine_row["event_id"] == "EVT005"
         assert quarantine_row["measurement_value"] == "ERROR"
-        assert quarantine_row["dq_errors"] == [
-            "DQ003_INVALID_NUMERIC"
-        ]
+        assert quarantine_row["dq_errors"] == ["DQ003_INVALID_NUMERIC"]
 
     finally:
         spark.stop()

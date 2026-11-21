@@ -1,6 +1,6 @@
 import os
-import sys
 import subprocess
+import sys
 
 print("Python:", sys.executable)
 
@@ -26,6 +26,7 @@ result = subprocess.run(
             "print('PYSPARK_WORKER_IMPORT_OK')"
         ),
     ],
+    check=False,
     capture_output=True,
     text=True,
     timeout=15,

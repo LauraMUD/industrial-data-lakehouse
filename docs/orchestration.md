@@ -265,7 +265,7 @@ descendant Spark or Java processes.
 The current Prefect tasks use:
 
 ```python
-retries=0
+retries = 0
 ```
 
 No automatic task retries are configured.

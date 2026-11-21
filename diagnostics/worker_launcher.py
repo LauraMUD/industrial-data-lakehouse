@@ -6,9 +6,11 @@ from pathlib import Path
 
 LOG_FILE = Path(__file__).resolve().parent / "worker_error.log"
 
+
 def log(message):
     with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} | {message}\n")
+
 
 log("=== PYTHON WORKER START ===")
 log(f"Executable: {sys.executable}")
@@ -18,7 +20,7 @@ log(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
 log(f"SPARK_LOCAL_IP: {os.environ.get('SPARK_LOCAL_IP')}")
 
 try:
-    import pyspark.worker
+    import pyspark.worker  # noqa: F401 - verify worker import
 
     log("pyspark.worker imported successfully")
 

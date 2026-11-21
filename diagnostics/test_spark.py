@@ -19,8 +19,7 @@ print("Python executable:", python_executable)
 # ==========================================
 
 spark = (
-    SparkSession.builder
-    .appName("IndustrialDataLakehouse")
+    SparkSession.builder.appName("IndustrialDataLakehouse")
     .master("local[2]")
     .config("spark.ui.enabled", "false")
     .config("spark.python.worker.faulthandler.enabled", "true")

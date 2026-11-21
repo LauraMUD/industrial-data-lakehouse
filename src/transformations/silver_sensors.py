@@ -3,20 +3,15 @@
 import json
 from pathlib import Path
 
-from pyspark.sql import DataFrame
-from pyspark.sql import functions as F
-from pyspark.sql import Window
 from delta.tables import DeltaTable
+from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import functions as F
 
-from pyspark.sql import SparkSession
 from src.ingestion.bronze_sensors import validate_batch_id
-
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-SILVER_CONTRACT_PATH = (
-    BASE_DIR / "config" / "contracts" / "sensor_readings_silver.json"
-)
+SILVER_CONTRACT_PATH = BASE_DIR / "config" / "contracts" / "sensor_readings_silver.json"
 
 
 def load_silver_contract(path: Path = SILVER_CONTRACT_PATH) -> dict:
@@ -32,19 +27,14 @@ def validate_required_fields(
     """Flag records with null or blank required fields."""
 
     missing_columns = [
-        column
-        for column in required_columns
-        if column not in df.columns
+        column for column in required_columns if column not in df.columns
     ]
 
     if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {missing_columns}"
-        )
+        raise ValueError(f"Missing required columns: {missing_columns}")
 
     invalid_conditions = [
-        F.col(column).isNull()
-        | (F.trim(F.col(column).cast("string")) == "")
+        F.col(column).isNull() | (F.trim(F.col(column).cast("string")) == "")
         for column in required_columns
     ]
 
@@ -61,6 +51,7 @@ def validate_required_fields(
         ).otherwise(F.array().cast("array<string>")),
     )
 
+
 def validate_numeric_measurement(df: DataFrame) -> DataFrame:
     """Validate numeric sensor readings and accumulate DQ errors."""
 
@@ -68,13 +59,9 @@ def validate_numeric_measurement(df: DataFrame) -> DataFrame:
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns for numeric validation: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns for numeric validation: {sorted(missing)}")
 
-    numeric_value = F.expr(
-        "try_cast(measurement_value AS DOUBLE)"
-    )
+    numeric_value = F.expr("try_cast(measurement_value AS DOUBLE)")
 
     result = df.withColumn(
         "measurement_value_numeric",
@@ -84,10 +71,7 @@ def validate_numeric_measurement(df: DataFrame) -> DataFrame:
     invalid_numeric = (
         F.col("measurement_value_numeric").isNull()
         | F.isnan(F.col("measurement_value_numeric"))
-        | (
-            F.abs(F.col("measurement_value_numeric"))
-            == F.lit(float("inf"))
-        )
+        | (F.abs(F.col("measurement_value_numeric")) == F.lit(float("inf")))
     )
 
     return result.withColumn(
@@ -101,6 +85,7 @@ def validate_numeric_measurement(df: DataFrame) -> DataFrame:
         ).otherwise(F.col("dq_errors")),
     )
 
+
 def validate_event_timestamp(df: DataFrame) -> DataFrame:
     """Validate ISO 8601 UTC timestamps and accumulate DQ errors."""
 
@@ -108,9 +93,7 @@ def validate_event_timestamp(df: DataFrame) -> DataFrame:
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns for timestamp validation: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns for timestamp validation: {sorted(missing)}")
 
     # Require an explicit UTC designator.
     valid_format = F.coalesce(
@@ -122,18 +105,14 @@ def validate_event_timestamp(df: DataFrame) -> DataFrame:
         F.lit(False),
     )
 
-    parsed_timestamp = F.expr(
-        "try_to_timestamp(event_timestamp)"
-    )
+    parsed_timestamp = F.expr("try_to_timestamp(event_timestamp)")
 
     result = df.withColumn(
         "event_timestamp_utc",
         F.when(valid_format, parsed_timestamp),
     )
 
-    invalid_timestamp = F.col(
-        "event_timestamp_utc"
-    ).isNull()
+    invalid_timestamp = F.col("event_timestamp_utc").isNull()
 
     return result.withColumn(
         "dq_errors",
@@ -146,6 +125,7 @@ def validate_event_timestamp(df: DataFrame) -> DataFrame:
         ).otherwise(F.col("dq_errors")),
     )
 
+
 def validate_measurement_type(
     df: DataFrame,
     contract: dict,
@@ -156,16 +136,13 @@ def validate_measurement_type(
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns: {sorted(missing)}")
 
     allowed_types = list(contract["measurement_rules"])
 
-    invalid_type = (
-        F.col("measurement_type").isNotNull()
-        & ~F.col("measurement_type").isin(allowed_types)
-    )
+    invalid_type = F.col("measurement_type").isNotNull() & ~F.col(
+        "measurement_type"
+    ).isin(allowed_types)
 
     return df.withColumn(
         "dq_errors",
@@ -189,9 +166,7 @@ def validate_measurement_unit(
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns: {sorted(missing)}")
 
     rules = contract["measurement_rules"]
 
@@ -217,6 +192,7 @@ def validate_measurement_unit(
         ).otherwise(F.col("dq_errors")),
     )
 
+
 def validate_duplicate_events(df: DataFrame) -> DataFrame:
     """Flag duplicate event IDs using deterministic ordering."""
 
@@ -224,33 +200,22 @@ def validate_duplicate_events(df: DataFrame) -> DataFrame:
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns: {sorted(missing)}")
 
     # Rank records with fewer existing quality errors first.
     quality_score = F.size(F.col("dq_errors"))
 
     # Stable ordering based on the complete record content.
-    content_columns = sorted(
-        column
-        for column in df.columns
-        if column != "dq_errors"
-    )
+    content_columns = sorted(column for column in df.columns if column != "dq_errors")
 
     content_key = F.to_json(
-        F.struct(
-            *[F.col(column) for column in content_columns]
-        ),
+        F.struct(*[F.col(column) for column in content_columns]),
         options={"ignoreNullFields": "false"},
     )
 
-    window = (
-        Window.partitionBy("event_id")
-        .orderBy(
-            quality_score.asc(),
-            content_key.asc(),
-        )
+    window = Window.partitionBy("event_id").orderBy(
+        quality_score.asc(),
+        content_key.asc(),
     )
 
     result = df.withColumn(
@@ -258,22 +223,17 @@ def validate_duplicate_events(df: DataFrame) -> DataFrame:
         F.row_number().over(window),
     )
 
-    return (
-        result.withColumn(
-            "dq_errors",
-            F.when(
-                F.col("event_id").isNotNull()
-                & (F.col("_duplicate_rank") > 1),
-                F.concat(
-                    F.col("dq_errors"),
-                    F.array(
-                        F.lit("DQ006_DUPLICATE_EVENT_ID")
-                    ),
-                ),
-            ).otherwise(F.col("dq_errors")),
-        )
-        .drop("_duplicate_rank")
-    )
+    return result.withColumn(
+        "dq_errors",
+        F.when(
+            F.col("event_id").isNotNull() & (F.col("_duplicate_rank") > 1),
+            F.concat(
+                F.col("dq_errors"),
+                F.array(F.lit("DQ006_DUPLICATE_EVENT_ID")),
+            ),
+        ).otherwise(F.col("dq_errors")),
+    ).drop("_duplicate_rank")
+
 
 def validate_measurement_range(
     df: DataFrame,
@@ -290,9 +250,7 @@ def validate_measurement_range(
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns: {sorted(missing)}")
 
     rules = contract["measurement_rules"]
 
@@ -305,10 +263,7 @@ def validate_measurement_range(
             (F.col("measurement_type") == measurement_type)
             & value.isNotNull()
             & ~F.isnan(value)
-            & (
-                (value < F.lit(rule["min"]))
-                | (value > F.lit(rule["max"]))
-            )
+            & ((value < F.lit(rule["min"])) | (value > F.lit(rule["max"])))
         )
 
         invalid_range = invalid_range | condition
@@ -319,12 +274,11 @@ def validate_measurement_range(
             invalid_range,
             F.concat(
                 F.col("dq_errors"),
-                F.array(
-                    F.lit("DQ007_OUT_OF_RANGE")
-                ),
+                F.array(F.lit("DQ007_OUT_OF_RANGE")),
             ),
         ).otherwise(F.col("dq_errors")),
     )
+
 
 def apply_quality_rules(
     df: DataFrame,
@@ -360,6 +314,7 @@ def apply_quality_rules(
 
     return result
 
+
 def split_quality_results(
     df: DataFrame,
 ) -> tuple[DataFrame, DataFrame]:
@@ -368,15 +323,12 @@ def split_quality_results(
     if "dq_errors" not in df.columns:
         raise ValueError("Missing required column: dq_errors")
 
-    valid_df = df.filter(
-        F.size(F.col("dq_errors")) == 0
-    )
+    valid_df = df.filter(F.size(F.col("dq_errors")) == 0)
 
-    rejected_df = df.filter(
-        F.size(F.col("dq_errors")) > 0
-    )
+    rejected_df = df.filter(F.size(F.col("dq_errors")) > 0)
 
     return valid_df, rejected_df
+
 
 def prepare_silver(df: DataFrame) -> DataFrame:
     """Prepare validated sensor readings for the Silver layer."""
@@ -399,32 +351,22 @@ def prepare_silver(df: DataFrame) -> DataFrame:
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns for Silver: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns for Silver: {sorted(missing)}")
 
-    return (
-        df.filter(F.size(F.col("dq_errors")) == 0)
-        .select(
-            "event_id",
-            "plant_id",
-            "equipment_id",
-            "sensor_id",
-            F.col("event_timestamp_utc")
-                .cast("timestamp")
-                .alias("event_timestamp"),
-            "measurement_type",
-            F.col("measurement_value_numeric")
-                .cast("double")
-                .alias("measurement_value"),
-            "unit",
-            "batch_id",
-            "source_file",
-            F.col("ingestion_timestamp")
-                .cast("timestamp")
-                .alias("ingestion_timestamp"),
-        )
+    return df.filter(F.size(F.col("dq_errors")) == 0).select(
+        "event_id",
+        "plant_id",
+        "equipment_id",
+        "sensor_id",
+        F.col("event_timestamp_utc").cast("timestamp").alias("event_timestamp"),
+        "measurement_type",
+        F.col("measurement_value_numeric").cast("double").alias("measurement_value"),
+        "unit",
+        "batch_id",
+        "source_file",
+        F.col("ingestion_timestamp").cast("timestamp").alias("ingestion_timestamp"),
     )
+
 
 def prepare_quarantine(df: DataFrame) -> DataFrame:
     """Prepare rejected sensor readings for quarantine."""
@@ -447,30 +389,24 @@ def prepare_quarantine(df: DataFrame) -> DataFrame:
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Missing columns for Quarantine: {sorted(missing)}"
-        )
+        raise ValueError(f"Missing columns for Quarantine: {sorted(missing)}")
 
-    return (
-        df.filter(F.size(F.col("dq_errors")) > 0)
-        .select(
-            "event_id",
-            "plant_id",
-            "equipment_id",
-            "sensor_id",
-            "event_timestamp",
-            "measurement_type",
-            "measurement_value",
-            "unit",
-            "batch_id",
-            "source_file",
-            "ingestion_timestamp",
-            "dq_errors",
-            F.current_timestamp().alias(
-                "quarantine_timestamp"
-            ),
-        )
+    return df.filter(F.size(F.col("dq_errors")) > 0).select(
+        "event_id",
+        "plant_id",
+        "equipment_id",
+        "sensor_id",
+        "event_timestamp",
+        "measurement_type",
+        "measurement_value",
+        "unit",
+        "batch_id",
+        "source_file",
+        "ingestion_timestamp",
+        "dq_errors",
+        F.current_timestamp().alias("quarantine_timestamp"),
     )
+
 
 def write_delta_batch(
     spark: SparkSession,
@@ -488,21 +424,17 @@ def write_delta_batch(
     target = str(target_path)
 
     invalid_batch_df = df.filter(
-        F.col("batch_id").isNull()
-        | (F.col("batch_id") != batch_id)
+        F.col("batch_id").isNull() | (F.col("batch_id") != batch_id)
     )
 
     if invalid_batch_df.limit(1).count() > 0:
-        raise ValueError(
-            f"DataFrame contains records outside batch_id={batch_id}"
-        )
+        raise ValueError(f"DataFrame contains records outside batch_id={batch_id}")
 
     batch_df = df
 
     if DeltaTable.isDeltaTable(spark, target):
         (
-            batch_df.write
-            .format("delta")
+            batch_df.write.format("delta")
             .mode("overwrite")
             .option(
                 "replaceWhere",
@@ -511,12 +443,8 @@ def write_delta_batch(
             .save(target)
         )
     else:
-        (
-            batch_df.write
-            .format("delta")
-            .mode("overwrite")
-            .save(target)
-        )
+        (batch_df.write.format("delta").mode("overwrite").save(target))
+
 
 def process_bronze_batch(
     spark: SparkSession,
@@ -528,8 +456,7 @@ def process_bronze_batch(
     validate_batch_id(batch_id)
 
     bronze_df = (
-        spark.read
-        .format("delta")
+        spark.read.format("delta")
         .load(str(bronze_path))
         .filter(F.col("batch_id") == batch_id)
     )
@@ -537,9 +464,7 @@ def process_bronze_batch(
     bronze_count = bronze_df.count()
 
     if bronze_count == 0:
-        raise ValueError(
-            f"No Bronze records found for batch_id={batch_id}"
-        )
+        raise ValueError(f"No Bronze records found for batch_id={batch_id}")
 
     contract = load_silver_contract()
 
@@ -571,6 +496,7 @@ def process_bronze_batch(
 
     return silver_df, quarantine_df, metrics
 
+
 def run_silver_pipeline(
     spark: SparkSession,
     bronze_path: Path,
@@ -583,9 +509,7 @@ def run_silver_pipeline(
     validate_batch_id(batch_id)
 
     if silver_path == quarantine_path:
-        raise ValueError(
-            "Silver and Quarantine must have different paths"
-        )
+        raise ValueError("Silver and Quarantine must have different paths")
 
     silver_df, quarantine_df, metrics = process_bronze_batch(
         spark,

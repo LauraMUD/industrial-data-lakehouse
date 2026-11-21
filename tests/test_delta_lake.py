@@ -11,8 +11,7 @@ def spark():
     os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
 
     builder = (
-        SparkSession.builder
-        .appName("IndustrialLakehouseTests")
+        SparkSession.builder.appName("IndustrialLakehouseTests")
         .master("local[2]")
         .config("spark.ui.enabled", "false")
         .config("spark.sql.shuffle.partitions", "2")
@@ -59,8 +58,8 @@ def test_delta_write_and_read(spark, tmp_path: Path):
         "production_tons",
     }
 
-    assert result.filter(
-        result.plant_id == "PLANT_02"
-    ).first()["production_tons"] == pytest.approx(210.3)
+    assert result.filter(result.plant_id == "PLANT_02").first()[
+        "production_tons"
+    ] == pytest.approx(210.3)
 
     assert (delta_path / "_delta_log").exists()

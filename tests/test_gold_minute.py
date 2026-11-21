@@ -9,7 +9,6 @@ from src.transformations.gold_minute import (
 )
 from src.utils.spark_session import create_spark_session
 
-
 SCHEMA = (
     "plant_id string, "
     "equipment_id string, "
@@ -66,9 +65,7 @@ def test_minute_aggregates_multiple_readings(spark):
     assert row["avg_value"] == pytest.approx(70.0)
     assert row["min_value"] == 60.0
     assert row["max_value"] == 80.0
-    assert row["stddev_value"] == pytest.approx(
-        (200.0 / 3.0) ** 0.5
-    )
+    assert row["stddev_value"] == pytest.approx((200.0 / 3.0) ** 0.5)
 
 
 def test_minute_separates_different_minutes(spark):
@@ -190,7 +187,5 @@ def test_minute_expected_timestamp(spark):
     result = build_agg_sensor_minute(df)
     row = result.first()
 
-    assert row["minute_start_utc"] == datetime(
-        2026, 11, 19, 7, 0, 0
-    )
+    assert row["minute_start_utc"] == datetime(2026, 11, 19, 7, 0, 0)
     assert row["stddev_value"] == 0.0

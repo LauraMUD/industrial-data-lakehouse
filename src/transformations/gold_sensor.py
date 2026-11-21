@@ -3,7 +3,6 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-
 SENSOR_COLUMNS = [
     "plant_id",
     "equipment_id",
@@ -22,18 +21,13 @@ SENSOR_KEY = [
 def build_dim_sensor(silver_df: DataFrame) -> DataFrame:
     """Build a consistent sensor dimension from Silver readings."""
 
-    missing_columns = set(SENSOR_COLUMNS) - set(
-        silver_df.columns
-    )
+    missing_columns = set(SENSOR_COLUMNS) - set(silver_df.columns)
 
     if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {sorted(missing_columns)}"
-        )
+        raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
 
     invalid_conditions = [
-        F.col(column).isNull()
-        | (F.trim(F.col(column)) == "")
+        F.col(column).isNull() | (F.trim(F.col(column)) == "")
         for column in SENSOR_COLUMNS
     ]
 
@@ -43,22 +37,15 @@ def build_dim_sensor(silver_df: DataFrame) -> DataFrame:
         invalid = invalid | condition
 
     if silver_df.filter(invalid).limit(1).count() > 0:
-        raise ValueError(
-            "Silver contains invalid sensor attributes"
-        )
+        raise ValueError("Silver contains invalid sensor attributes")
 
     sensor_df = silver_df.select(*SENSOR_COLUMNS).distinct()
 
     inconsistent_sensors = (
-        sensor_df
-        .groupBy(*SENSOR_KEY)
-        .count()
-        .filter(F.col("count") > 1)
+        sensor_df.groupBy(*SENSOR_KEY).count().filter(F.col("count") > 1)
     )
 
     if inconsistent_sensors.limit(1).count() > 0:
-        raise ValueError(
-            "Inconsistent measurement type or unit for sensor"
-        )
+        raise ValueError("Inconsistent measurement type or unit for sensor")
 
     return sensor_df

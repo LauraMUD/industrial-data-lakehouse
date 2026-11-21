@@ -10,7 +10,6 @@ from src.transformations.gold_readings import (
 )
 from src.utils.spark_session import create_spark_session
 
-
 FACT_SCHEMA = (
     "event_id string, "
     "plant_id string, "
@@ -184,9 +183,7 @@ def test_fact_preserves_lineage(spark):
 
     assert row["batch_id"] == "sensors_batch_001"
     assert row["source_file"] == "sensors_batch_001.csv"
-    assert row["ingestion_timestamp"] == datetime(
-        2026, 11, 19, 8, 0
-    )
+    assert row["ingestion_timestamp"] == datetime(2026, 11, 19, 8, 0)
 
 
 def test_fact_expected_schema(spark):

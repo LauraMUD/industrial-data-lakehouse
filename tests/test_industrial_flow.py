@@ -1,8 +1,6 @@
-
 """Tests for the industrial Prefect orchestration flow."""
 
 import pytest
-
 from prefect.testing.utilities import prefect_test_harness
 
 from pipeline import industrial_flow
@@ -67,9 +65,7 @@ def test_bronze_failure_blocks_downstream(
         executed.append(stage)
 
         if stage == "bronze":
-            raise StageExecutionError(
-                "Simulated Bronze failure"
-            )
+            raise StageExecutionError("Simulated Bronze failure")
 
         return make_result(stage)
 
@@ -100,9 +96,7 @@ def test_silver_failure_blocks_gold(
         executed.append(stage)
 
         if stage == "silver":
-            raise StageExecutionError(
-                "Simulated Silver failure"
-            )
+            raise StageExecutionError("Simulated Silver failure")
 
         return make_result(stage)
 
@@ -133,9 +127,7 @@ def test_gold_failure_propagates(
         executed.append(stage)
 
         if stage == "gold":
-            raise StageExecutionError(
-                "Simulated Gold failure"
-            )
+            raise StageExecutionError("Simulated Gold failure")
 
         return make_result(stage)
 
@@ -163,11 +155,13 @@ def test_flow_propagates_custom_paths(
     calls = []
 
     def fake_run_stage(stage, module, args=()):
-        calls.append({
-            "stage": stage,
-            "module": module,
-            "args": list(args),
-        })
+        calls.append(
+            {
+                "stage": stage,
+                "module": module,
+                "args": list(args),
+            }
+        )
         return make_result(stage)
 
     monkeypatch.setattr(
@@ -190,29 +184,30 @@ def test_flow_propagates_custom_paths(
         "gold",
     ]
 
-    assert calls[0]["module"] == (
-        "src.ingestion.bronze_sensors"
-    )
+    assert calls[0]["module"] == ("src.ingestion.bronze_sensors")
     assert calls[0]["args"] == [
-        "--source", "data/raw/test.csv",
-        "--target", "data/test/bronze",
+        "--source",
+        "data/raw/test.csv",
+        "--target",
+        "data/test/bronze",
     ]
 
-    assert calls[1]["module"] == (
-        "src.pipelines.run_silver"
-    )
+    assert calls[1]["module"] == ("src.pipelines.run_silver")
     assert calls[1]["args"] == [
-        "--bronze-path", "data/test/bronze",
-        "--silver-path", "data/test/silver",
-        "--quarantine-path", "data/test/quarantine",
+        "--bronze-path",
+        "data/test/bronze",
+        "--silver-path",
+        "data/test/silver",
+        "--quarantine-path",
+        "data/test/quarantine",
     ]
 
-    assert calls[2]["module"] == (
-        "src.pipelines.run_gold_pipeline"
-    )
+    assert calls[2]["module"] == ("src.pipelines.run_gold_pipeline")
     assert calls[2]["args"] == [
-        "--silver-path", "data/test/silver",
-        "--gold-path", "data/test/gold",
+        "--silver-path",
+        "data/test/silver",
+        "--gold-path",
+        "data/test/gold",
     ]
 
     assert set(results) == {

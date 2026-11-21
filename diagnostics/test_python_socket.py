@@ -22,9 +22,7 @@ with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
     s.sendall(b"PYTHON_WORKER_OK")
 """
 
-process = subprocess.Popen(
-    [sys.executable, "-c", worker_code, str(port)]
-)
+process = subprocess.Popen([sys.executable, "-c", worker_code, str(port)])
 
 try:
     conn, addr = server.accept()

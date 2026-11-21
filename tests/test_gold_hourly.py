@@ -7,7 +7,6 @@ import pytest
 from src.transformations.gold_hourly import build_agg_sensor_hourly
 from src.utils.spark_session import create_spark_session
 
-
 SCHEMA = (
     "plant_id string, "
     "equipment_id string, "
@@ -65,9 +64,7 @@ def test_hourly_aggregates_different_minutes(spark):
     assert row["avg_value"] == pytest.approx(70.0)
     assert row["min_value"] == 60.0
     assert row["max_value"] == 80.0
-    assert row["stddev_value"] == pytest.approx(
-        (200.0 / 3.0) ** 0.5
-    )
+    assert row["stddev_value"] == pytest.approx((200.0 / 3.0) ** 0.5)
 
 
 def test_hourly_separates_hours(spark):
@@ -195,6 +192,4 @@ def test_hourly_expected_timestamp(spark):
 
     row = build_agg_sensor_hourly(df).first()
 
-    assert row["hour_start_utc"] == datetime(
-        2026, 11, 19, 7, 0, 0
-    )
+    assert row["hour_start_utc"] == datetime(2026, 11, 19, 7, 0, 0)

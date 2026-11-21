@@ -3,23 +3,14 @@
 import argparse
 from pathlib import Path
 
-from pyspark.sql import functions as F
-
 from src.transformations.silver_sensors import run_silver_pipeline
 from src.utils.spark_session import create_spark_session
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-DEFAULT_BRONZE_PATH = (
-    PROJECT_ROOT / "data" / "bronze" / "sensor_readings"
-)
-DEFAULT_SILVER_PATH = (
-    PROJECT_ROOT / "data" / "silver" / "sensor_readings"
-)
-DEFAULT_QUARANTINE_PATH = (
-    PROJECT_ROOT / "data" / "quarantine" / "sensor_readings"
-)
+DEFAULT_BRONZE_PATH = PROJECT_ROOT / "data" / "bronze" / "sensor_readings"
+DEFAULT_SILVER_PATH = PROJECT_ROOT / "data" / "silver" / "sensor_readings"
+DEFAULT_QUARANTINE_PATH = PROJECT_ROOT / "data" / "quarantine" / "sensor_readings"
 
 
 def discover_batches(spark, bronze_path: Path) -> list[str]:
@@ -27,13 +18,7 @@ def discover_batches(spark, bronze_path: Path) -> list[str]:
 
     bronze_df = spark.read.format("delta").load(str(bronze_path))
 
-    batch_rows = (
-        bronze_df
-        .select("batch_id")
-        .distinct()
-        .orderBy("batch_id")
-        .collect()
-    )
+    batch_rows = bronze_df.select("batch_id").distinct().orderBy("batch_id").collect()
 
     batch_ids = [row["batch_id"] for row in batch_rows]
 
@@ -79,9 +64,7 @@ def main() -> None:
     ]
 
     if len(set(paths)) != 3:
-        raise ValueError(
-            "Bronze, Silver and Quarantine paths must be different"
-        )
+        raise ValueError("Bronze, Silver and Quarantine paths must be different")
 
     spark = create_spark_session("IndustrialSilverPipeline")
     spark.conf.set("spark.sql.session.timeZone", "UTC")

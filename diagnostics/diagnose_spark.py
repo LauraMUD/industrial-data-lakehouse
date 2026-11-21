@@ -9,8 +9,7 @@ os.environ["PYSPARK_PYTHON"] = sys.executable
 os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 spark = (
-    SparkSession.builder
-    .appName("SparkWindowsDiagnostics")
+    SparkSession.builder.appName("SparkWindowsDiagnostics")
     .master("local[1]")
     .config("spark.ui.enabled", "false")
     .config("spark.driver.host", "127.0.0.1")
@@ -54,7 +53,7 @@ try:
     df.show()
     print("TEST 3: OK")
 
-except Exception:
+except Exception:  # noqa: BLE001 - diagnostic captures all failures
     print("\nDIAGNOSTIC FAILED")
     traceback.print_exc()
 

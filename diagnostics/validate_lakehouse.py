@@ -7,8 +7,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DELTA_PATH = BASE_DIR / "data" / "bronze" / "production_validation"
 
 builder = (
-    SparkSession.builder
-    .appName("IndustrialLakehouseValidation")
+    SparkSession.builder.appName("IndustrialLakehouseValidation")
     .master("local[2]")
     .config("spark.sql.shuffle.partitions", "2")
     .config(
@@ -42,12 +41,7 @@ try:
 
     print("Writing Delta table...")
 
-    (
-        df.write
-        .format("delta")
-        .mode("overwrite")
-        .save(str(DELTA_PATH))
-    )
+    (df.write.format("delta").mode("overwrite").save(str(DELTA_PATH)))
 
     print("Reading Delta table...")
 
