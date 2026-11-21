@@ -171,4 +171,8 @@ The original non-numeric value ERROR is preserved in Bronze.
 - Ingestion audit logging
 - Data quality monitoring
 - Cloud object storage integration
-- CI/CD pipeline
+- Automated deployment to a defined production environment
+
+Continuous integration is implemented with GitHub Actions, including
+Ruff quality checks and the automated test suite. See
+[CI/CD and Reproducibility](ci_cd.md).

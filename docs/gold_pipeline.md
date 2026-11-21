@@ -287,7 +287,9 @@ Coverage includes:
 - Cleanup after handled publication failures
 - Rejection of simulated validation failures
 
-The Gold integration tests currently use the local Silver Delta dataset for some scenarios.
+Gold integration tests generate deterministic Silver data from versioned
+CSV fixtures through the Bronze and Silver transformations. Temporary
+Delta paths isolate each test from existing local datasets.
 
 ## 9. Current Validation Dataset
 
@@ -314,7 +316,6 @@ Known limitations include:
 - Abrupt process termination may leave orphaned version directories.
 - Each successful execution creates a new version, even when Silver data is unchanged.
 - Version retention and garbage collection are not automated.
-- Some integration tests depend on a pre-existing local Silver dataset.
 - Publication validation checks counts and schema compatibility but does not compare every persisted value.
 - Readers must consistently use a pinned version identifier to avoid mixing versions.
 - Prefect tasks currently use `retries=0`; automatic
@@ -329,14 +330,17 @@ Known limitations include:
 
 Potential extensions include:
 
-- Independent integration-test fixtures
+- Additional integration-test scenarios and fixtures
 - Version retention and cleanup policies
 - Concurrent-publication control
 - Data quality metrics and observability
 - Scheduled Prefect deployments and production monitoring
 - Incremental Gold processing
 - Deployment to managed cloud storage
-- Automated CI validation
+- Automated deployment to a defined production environment
+
+Continuous integration is implemented with GitHub Actions and runs
+Ruff checks and automated tests. See [CI/CD and Reproducibility](ci_cd.md).
 
 ## 12. Summary
 

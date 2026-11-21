@@ -110,7 +110,7 @@ The project uses:
 Install the locked dependencies:
 
 ```bash
-uv sync --frozen
+uv sync --locked --dev
 ```
 
 ## 5. Local Prefect Configuration
@@ -330,11 +330,16 @@ validation paths.
 - Production-grade monitoring and alerting.
 - Improved Spark subprocess lifecycle management.
 - Cloud storage integration.
-- CI/CD validation and deployment automation.
+- Automated deployment to a defined production environment.
+
+GitHub Actions continuous integration is already implemented and validates
+Ruff linting, formatting, and the automated test suite. This does not
+configure Prefect deployments or production scheduling.
 
 ## 13. Related Documentation
 
 - [Bronze Ingestion](bronze_ingestion.md)
 - [Silver Pipeline](silver_pipeline.md)
 - [Gold Pipeline](gold_pipeline.md)
+- [CI/CD and Reproducibility](ci_cd.md)
 - [Project README](../README.md)

@@ -1,4 +1,3 @@
-
 # Industrial Data Lakehouse
 
 A reproducible industrial data engineering project built with Apache Spark, Delta Lake, Python, Prefect, and uv.
@@ -22,6 +21,8 @@ The current implementation includes:
 - Isolated subprocess execution with timeouts and failure propagation
 - Execution logging and structured stage metadata
 - Automated unit and integration tests
+- Ruff linting and formatting checks
+- GitHub Actions continuous integration on pushes and pull requests to `main`
 
 ## Architecture
 
@@ -187,6 +188,8 @@ Documentation: [Prefect Orchestration](docs/orchestration.md)
 | Prefect 3 | Workflow orchestration and execution states |
 | uv | Dependency management |
 | pytest | Automated testing |
+| Ruff | Linting and code formatting |
+| GitHub Actions | Continuous integration |
 | Git / GitHub | Version control |
 | Ubuntu / WSL | Development environment |
 
@@ -208,7 +211,8 @@ industrial-data-lakehouse/
 │   ├── bronze_ingestion.md
 │   ├── silver_pipeline.md
 │   ├── gold_pipeline.md
-│   └── orchestration.md
+│   ├── orchestration.md
+│   └── ci_cd.md
 ├── pipeline/
 │   ├── __init__.py
 │   ├── industrial_flow.py
@@ -242,6 +246,9 @@ industrial-data-lakehouse/
 │   ├── test_gold_pipeline.py
 │   ├── test_industrial_flow.py
 │   └── test_runner.py
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
@@ -261,7 +268,7 @@ Local environment configuration is stored in `.env`, which is not committed to G
 ### Requirements
 
 - Linux or WSL
-- Compatible Java runtime
+- Java 17
 - Python 3.11
 - uv
 - Git
@@ -276,7 +283,7 @@ cd industrial-data-lakehouse
 ### Install Dependencies
 
 ```bash
-uv sync --frozen
+uv sync --locked --dev
 ```
 
 ### Verify the Environment
@@ -512,10 +519,10 @@ The project uses pytest for unit and integration testing.
 Run the complete test suite:
 
 ```bash
-uv run --env-file .env pytest -v
+uv run --locked pytest -v
 ```
 
-**Latest validated result: 89 tests passed (November 20, 2026).**
+**Local validation: 89 tests passed (November 20, 2026). The test step also passed in GitHub Actions on November 21, 2026.**
 
 | Component | Tests |
 |---|---:|
@@ -542,9 +549,36 @@ The tests cover:
 - Subprocess execution and timeouts
 - Structured execution errors
 
-Some Gold integration tests currently require a locally prepared Silver Delta dataset.
+Gold integration tests build deterministic Silver data from versioned CSV fixtures and use temporary Delta paths. They do not require a pre-existing local Silver dataset.
 
 A real end-to-end Prefect execution was also completed successfully using isolated validation paths.
+
+## Continuous Integration and Code Quality
+
+GitHub Actions runs the workflow in `.github/workflows/ci.yml` on pushes to `main` and pull requests targeting `main`.
+
+The CI job uses an Ubuntu runner, Java 17, Python 3.11, and locked Python dependencies. It performs:
+
+1. Repository checkout and runtime setup.
+2. Dependency installation with `uv sync --locked --dev`.
+3. Linting with Ruff.
+4. Formatting verification with Ruff.
+5. Automated pytest execution, including PySpark and Delta Lake tests.
+
+To reproduce the CI quality gates locally, run from the repository root:
+
+```bash
+uv sync --locked --dev
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked pytest -v
+```
+
+The workflow completed successfully on November 21, 2026, for commit `d5a7538`: [successful CI run](https://github.com/LauraMUD/industrial-data-lakehouse/actions/runs/44897204138).
+
+**Scope:** continuous integration is implemented; automated production deployment is not. Current maintenance warnings concern the deprecation of Node.js 20-based Actions and `actions/setup-java@v4`.
+
+See [CI/CD and Reproducibility](docs/ci_cd.md) for details and troubleshooting.
 
 ## Reproducibility
 
@@ -556,12 +590,12 @@ The project uses `uv` to manage Python dependencies.
 To recreate the Python environment:
 
 ```bash
-uv sync --frozen
+uv sync --locked --dev
 ```
 
 The generated Delta datasets are excluded from version control.
 
-Prefect execution can be configured locally through an ignored `.env` file.
+Prefect execution can be configured locally through an ignored `.env` file. The CI test suite does not require this local file.
 
 ## Development Roadmap
 
@@ -580,7 +614,7 @@ Prefect execution can be configured locally through an ignored `.env` file.
 - [x] Document orchestration and operational limitations
 - [ ] Implement additional industrial business KPIs
 - [ ] Add persistent monitoring, alerting, and scheduled deployments
-- [ ] Implement CI/CD
+- [x] Implement GitHub Actions continuous integration
 - [ ] Deploy to cloud infrastructure
 
 ## Future Improvements
@@ -596,7 +630,7 @@ Potential extensions include:
 - Cloud object storage integration
 - Version retention and cleanup
 - Concurrent-publication control
-- Independent integration-test fixtures
+- Additional integration-test scenarios and fixtures
 - Improved Spark subprocess lifecycle management
 - Business intelligence dashboards
 
@@ -610,6 +644,7 @@ The main engineering principles are:
 - Data reliability
 - Reproducibility
 - Automated testing
+- Continuous integration
 - Data lineage
 - Industrial analytics
 - Workflow orchestration
